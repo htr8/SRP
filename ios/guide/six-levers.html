@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Six Levers Framework — SuccessRate</title>
+<style>
+  :root {
+    --bg: #f8f9fa; --card: #ffffff; --accent: #1a56db;
+    --text: #111827; --muted: #4b5563; --border: #e5e7eb;
+    --green: #065f46; --green-bg: #ecfdf5;
+    --amber: #92400e; --amber-bg: #fffbeb;
+    --badge: #1e3a5f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.75; font-size: 15px;
+  }
+
+  /* ── Save button ── */
+  .save-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 12px 24px; font-size: 14px; font-weight: 600;
+  }
+  .save-bar button {
+    background: #fff; color: var(--accent);
+    border: none; border-radius: 6px;
+    padding: 6px 18px; font-size: 14px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+  }
+  .save-bar button:hover { background: #e0e7ff; }
+
+  /* ── Cover ── */
+  .cover {
+    background: #0b1c30; color: #fff;
+    padding: 60px 40px 50px;
+    text-align: center;
+  }
+  .cover__brand { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: #93c5fd; margin-bottom: 24px; }
+  .cover__title { font-size: clamp(26px, 5vw, 40px); font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+  .cover__title span { color: #60a5fa; }
+  .cover__sub { font-size: 16px; color: #94a3b8; max-width: 540px; margin: 0 auto 32px; }
+  .cover__meta { font-size: 12px; color: #64748b; }
+
+  /* ── Body ── */
+  .container { max-width: 760px; margin: 0 auto; padding: 48px 32px 80px; }
+
+  h2 {
+    font-size: 22px; font-weight: 700; color: var(--text);
+    margin: 48px 0 16px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+  h2:first-of-type { margin-top: 0; }
+  h3 { font-size: 17px; font-weight: 700; color: var(--accent); margin: 32px 0 10px; }
+  h4 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 22px 0 8px; }
+  p { color: var(--muted); margin-bottom: 14px; }
+  p strong { color: var(--text); }
+  ul, ol { margin: 10px 0 16px 24px; }
+  li { color: var(--muted); margin-bottom: 7px; }
+  li strong { color: var(--text); }
+
+  .part-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent);
+    margin: 56px 0 4px;
+  }
+
+  /* ── Cards ── */
+  .note {
+    background: #eff6ff; border-left: 4px solid var(--accent); border-radius: 0 6px 6px 0;
+    padding: 14px 18px; margin: 18px 0; font-size: 14px; color: var(--text);
+  }
+  .note strong { color: var(--accent); }
+  .warn {
+    background: var(--amber-bg); border-left: 4px solid #d97706; border-radius: 0 6px 6px 0;
+    padding: 14px 18px; margin: 18px 0; font-size: 14px; color: var(--text);
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 22px 26px; margin: 18px 0;
+  }
+  .card h3 { margin-top: 0; }
+
+  /* ── Lever badge ── */
+  .lever {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 22px 26px; margin: 18px 0;
+    display: grid; grid-template-columns: 44px 1fr; gap: 0 16px;
+    align-items: start;
+  }
+  .lever__num {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 18px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .lever__body h3 { margin: 2px 0 10px; font-size: 18px; color: var(--text); }
+  .lever__impact {
+    display: inline-block; background: var(--green-bg); color: var(--green);
+    font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 12px;
+    margin-bottom: 10px;
+  }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13px; }
+  th { background: #f1f5f9; font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); color: var(--text); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+  td strong { color: var(--text); }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--border);
+    font-size: 12px; color: #9ca3af; font-style: italic; line-height: 1.6;
+  }
+
+  /* ── Print styles ── */
+  @media print {
+    .save-bar { display: none !important; }
+    body { background: #fff; font-size: 13px; }
+    .cover { background: #0b1c30 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .lever, .card, .note, .warn { break-inside: avoid; }
+    h2, h3 { break-after: avoid; }
+    .container { padding: 32px 24px; }
+  }
+
+  @media (max-width: 600px) {
+    .container { padding: 32px 16px; }
+    .lever { grid-template-columns: 1fr; }
+    .lever__num { margin-bottom: 10px; }
+    .cover { padding: 40px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="save-bar">
+  <span>Save this guide as a PDF for future reference</span>
+  <button onclick="window.print()">&#8675; Save as PDF</button>
+</div>
+
+<div class="cover">
+  <div class="cover__brand">SuccessRate &mdash; Retirement Planning Framework</div>
+  <h1 class="cover__title">The <span>Six Levers</span> Framework<br>A Systematic Approach to<br>Retirement Success</h1>
+  <p class="cover__sub">A plain-English guide to understanding your retirement odds and the six decisions that actually move them &mdash; with data-backed benchmarks for each.</p>
+  <div class="cover__meta">SuccessRate &bull; successrate.app &bull; Not financial advice &mdash; see disclaimer</div>
+</div>
+
+<div class="container">
+
+<div class="note"><strong>Before you begin:</strong> This framework is built on Monte Carlo simulation &mdash; a method that runs thousands of possible futures for your money and tells you how many end well. The core metric is your <strong>success rate</strong>: the percentage of simulated retirements where your portfolio did not run out before the end of your planning horizon. Everything in this guide is aimed at moving that number in a meaningful, honest way.</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Part One -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="part-label">Part One</div>
+<h2>The One Number That Matters</h2>
+<p>When you run a retirement simulation, the first number you see is the <strong>Success Rate</strong> &mdash; something like 78% or 91%. This is the most important output the tool produces.</p>
+<p>The success rate tells you: out of 1,000 simulated retirements using your exact financial situation and spending plan, how many ended with money still in the bank? A 91% success rate means 910 of those futures worked out. The other 90 ran out of money at some point before the end of the plan.</p>
+<p><em>An important clarification:</em> this is not a personal probability. It means that under these assumptions, 91% of the modeled scenarios succeeded. If your actual spending, health, or market timing differs from the model, the real number shifts. The simulation is a structured way to reason about uncertainty &mdash; not a guarantee.</p>
+
+<div class="note"><strong>What is a "good" success rate?</strong> Most financial planners consider 85&ndash;90% a reasonable target for a 30-year retirement. Pushing from 90% to 99% typically requires cutting spending so drastically that you sacrifice real quality of life in the scenarios where the market performs well. The goal is not the highest possible number &mdash; it is a number you can reach while living the life you planned for.</div>
+
+<h3>The Three Numbers to Check First</h3>
+<table>
+<tr><th>Number</th><th>What It Means</th><th>Warning Sign</th></tr>
+<tr><td><strong>Success Rate</strong></td><td>Fraction of futures that end with money remaining.</td><td>Below 80%: structural changes needed.</td></tr>
+<tr><td><strong>5th Percentile Wealth</strong></td><td>Your final wealth in the worst 1-in-20 futures. The floor, not the average.</td><td>Near zero: left-tail risk is dangerous.</td></tr>
+<tr><td><strong>Median Wealth</strong></td><td>Final wealth in the middle of all futures.</td><td>Much lower than expected? Check spending assumptions.</td></tr>
+</table>
+
+<div class="warn"><strong>Don't plan to the median.</strong> If you plan exactly to the median, you have roughly a 50% chance of running short. Plan so your essential needs are met even in 5th-to-10th percentile outcomes. Your <em>median</em> wealth tells you what a normal retirement looks like. Your <em>5th percentile</em> wealth tells you whether a bad one is survivable.</div>
+
+<h3>Why Sequence of Returns Is the Core Risk</h3>
+<p>A retiree who experiences poor returns in the first five years of retirement &mdash; while simultaneously withdrawing living expenses &mdash; can permanently impair a portfolio that would have been fine if the same returns arrived in a different order. Two retirees with identical 30-year average returns can have wildly different outcomes depending on the sequence.</p>
+<p>This is the most important risk in early retirement, and it is the primary reason Monte Carlo simulation exists. All six levers in this framework address sequence-of-returns risk in some way.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Part Two: The Six Levers -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="part-label">Part Two</div>
+<h2>The Six Levers That Actually Move Your Success Rate</h2>
+<p>There are only six categories of decision that meaningfully change your retirement odds. Everything else is noise. Here they are, roughly in order of impact.</p>
+
+<!-- Lever 1 -->
+<div class="lever">
+  <div class="lever__num">1</div>
+  <div class="lever__body">
+    <h3>Right-Size Your Spending</h3>
+    <span class="lever__impact">&#9650; 5&ndash;15 percentage points typical impact</span>
+    <p>The single most powerful lever is <strong>how much you spend</strong>. A 10% reduction in annual spending can improve your success rate by 5&ndash;10 percentage points &mdash; more than any investment optimization.</p>
+    <p>The key insight: not all spending is equal. Separate your expenses into <strong>essential</strong> (housing, food, insurance, healthcare) and <strong>discretionary</strong> (travel, dining out, hobbies, gifts). When you model realistic flexibility &mdash; cutting discretionary in bad markets &mdash; the results are typically more optimistic than treating all spending as rigid.</p>
+    <div class="note"><strong>How to apply:</strong> Label optional expenses as discretionary. Use a dynamic spending strategy (see Lever 3). The simulation will model the cuts automatically during stress scenarios.</div>
+  </div>
+</div>
+
+<!-- Lever 2 -->
+<div class="lever">
+  <div class="lever__num">2</div>
+  <div class="lever__body">
+    <h3>Optimize Your Investment Allocation</h3>
+    <span class="lever__impact">&#9650; 2&ndash;6 percentage points typical impact</span>
+    <p>Where you hold your money affects both return and risk. At current US market valuations (CAPE above 35), international developed-market and emerging-market stocks are priced significantly cheaper &mdash; with correspondingly higher expected future returns.</p>
+    <table>
+    <tr><th>Allocation Mix</th><th>Expected 10-Yr Real Return</th><th>Volatility</th></tr>
+    <tr><td>100% US Equity</td><td>2&ndash;4% (high CAPE headwind)</td><td>~18%</td></tr>
+    <tr><td>60/40 US Equity / Bonds</td><td>2&ndash;3.5%</td><td>~11%</td></tr>
+    <tr><td><strong>40% US / 25% Intl / 10% EM / 25% Bonds</strong></td><td><strong>3.5&ndash;5%</strong></td><td>~12%</td></tr>
+    </table>
+    <p><strong>Bonds: the role they actually play.</strong> Bonds reduce volatility, protecting against sequence-of-returns risk in early retirement. Higher bond allocations improve worst-case (5th percentile) outcomes while reducing best-case outcomes. If you have large guaranteed income from Social Security or pensions that covers essentials, you may be able to carry more equity risk.</p>
+    <div class="note"><strong>How to apply:</strong> Run your simulation twice &mdash; once with your current allocation and once with 20&ndash;30% international &mdash; and compare the 5th percentile outcome specifically.</div>
+  </div>
+</div>
+
+<!-- Lever 3 -->
+<div class="lever">
+  <div class="lever__num">3</div>
+  <div class="lever__body">
+    <h3>Use a Dynamic Spending Strategy</h3>
+    <span class="lever__impact">&#9650; 4&ndash;8 percentage points vs. fixed spending</span>
+    <p>A fixed spending plan &mdash; the same inflation-adjusted amount every year &mdash; is almost certainly not how you actually live. Dynamic strategies adjust spending based on portfolio performance, improving longevity at a modest cost in income variability.</p>
+    <table>
+    <tr><th>Strategy</th><th>How It Works</th><th>Best For</th></tr>
+    <tr><td><strong>Guardrails (Guyton-Klinger)</strong></td><td>Cut 10% when withdrawal rate exceeds upper guardrail. Raise 10% when rate drops below lower guardrail.</td><td>Most retirees. Tested, simple, effective.</td></tr>
+    <tr><td><strong>Portfolio Drop</strong></td><td>Cuts spending when portfolio falls more than 10% below its peak.</td><td>Leading-indicator protection.</td></tr>
+    <tr><td><strong>Vanguard Dynamic</strong></td><td>Spends a target % of balance, clamped to &plusmn;5% from prior year.</td><td>Smoothest year-to-year experience.</td></tr>
+    <tr><td><strong>Fixed</strong></td><td>Same inflation-adjusted amount every year.</td><td>Baseline comparison only.</td></tr>
+    </table>
+    <div class="note"><strong>How to apply:</strong> Start with Guardrails as your default. Compared to a fixed plan at the same starting rate, guardrails typically improve success probability by 4&ndash;8 percentage points with only modest spending variability.</div>
+  </div>
+</div>
+
+<!-- Lever 4 -->
+<div class="lever">
+  <div class="lever__num">4</div>
+  <div class="lever__body">
+    <h3>Hold a Cash Buffer</h3>
+    <span class="lever__impact">&#9650; 4&ndash;7 percentage points at 5th percentile</span>
+    <p>Selling stocks at depressed prices to fund living expenses is the dominant risk in early retirement. The most direct way to neutralize it: hold 1&ndash;3 years of living expenses in cash. When the market crashes, draw from cash instead of selling investments.</p>
+    <table>
+    <tr><th>Buffer Size</th><th>Success Rate Improvement</th><th>Opportunity Cost (30 yrs)</th></tr>
+    <tr><td>0 (no buffer)</td><td>Baseline</td><td>None</td></tr>
+    <tr><td>1 year</td><td>~+2 to +3 pp</td><td>~1&ndash;2% of portfolio</td></tr>
+    <tr><td><strong>2 years (recommended)</strong></td><td><strong>~+4 to +6 pp</strong></td><td>~2&ndash;4% of portfolio</td></tr>
+    <tr><td>3 years</td><td>~+5 to +7 pp</td><td>~3&ndash;5% of portfolio</td></tr>
+    </table>
+    <div class="note"><strong>Where the cash buffer earns its keep:</strong> It does not improve your median outcome &mdash; it may slightly reduce it. What it improves is your <em>5th percentile</em> outcome. Run the simulation with and without a cash buffer and compare the 5th percentile final wealth.</div>
+  </div>
+</div>
+
+<!-- Lever 5 -->
+<div class="lever">
+  <div class="lever__num">5</div>
+  <div class="lever__body">
+    <h3>Reduce Your Tax Drag</h3>
+    <span class="lever__impact">&#9650; 1&ndash;4 percentage points; up to $150K+ in lifetime savings</span>
+    <p>Tax efficiency is a guaranteed return with no market risk. A well-executed tax strategy covers three areas:</p>
+    <h4>Roth Conversions: Pay Tax Now, Grow Tax-Free</h4>
+    <p>If you have a large tax-deferred balance and modest income in the years between retirement and Social Security or RMD age, those years are a window. Converting some traditional IRA money to Roth at a known, lower rate now avoids larger tax bills during RMDs in your 70s and 80s.</p>
+    <p>A well-executed conversion plan &mdash; filling the 12% or 22% bracket in early retirement &mdash; can improve success probability by 1&ndash;4 percentage points and after-tax median final wealth by 5&ndash;10%.</p>
+    <h4>The Optimal Withdrawal Order</h4>
+    <ol>
+    <li><strong>First:</strong> Draw from taxable (brokerage) accounts up to the amount eligible for the 0% long-term capital gains rate.</li>
+    <li><strong>Second:</strong> Fill lower income tax brackets with traditional IRA withdrawals and Roth conversions.</li>
+    <li><strong>Last:</strong> Preserve Roth accounts &mdash; they grow tax-free and have no required minimum distributions.</li>
+    </ol>
+    <h4>IRMAA: the Invisible Tax</h4>
+    <p>Medicare premiums increase significantly above certain income thresholds. A retiree whose income lands just above a threshold can face several thousand dollars more in annual Medicare premiums. Plan withdrawal amounts carefully near these thresholds.</p>
+    <div class="note"><strong>Key insight:</strong> A $1,500,000 traditional IRA is not $1,500,000 of spendable wealth. At a 22% marginal rate, the embedded tax liability is $330,000. Always compare gross wealth to after-tax wealth in your simulation results.</div>
+  </div>
+</div>
+
+<!-- Lever 6 -->
+<div class="lever">
+  <div class="lever__num">6</div>
+  <div class="lever__body">
+    <h3>Optimize Your Income Sources</h3>
+    <span class="lever__impact">&#9650; 3&ndash;8 percentage points combined impact</span>
+    <p>Every dollar of guaranteed income is a dollar your portfolio does not have to provide &mdash; permanently, regardless of market conditions. Two levers are available:</p>
+    <h4>Delay Social Security: The Highest-Return Guaranteed Investment</h4>
+    <p>Social Security benefits increase approximately 7&ndash;8% for each year you delay claiming past 62, up to age 70. For a retiree with a $24,000 annual benefit at full retirement age (67), waiting to 70 increases the benefit to approximately $30,000 &mdash; a 25% permanent, inflation-indexed increase.</p>
+    <p>Delaying Social Security typically improves success rates by <strong>3&ndash;6 percentage points</strong> and meaningfully improves worst-case (5th percentile) outcomes, because it converts market-dependent portfolio withdrawals into a guaranteed income floor. The cost is drawing down your portfolio more aggressively in the bridge years before benefits begin.</p>
+    <h4>Bridge Income: Protect the Critical Early Years</h4>
+    <p>The first 5&ndash;10 years of retirement carry disproportionate sequence-of-returns risk. Part-time work, consulting, or monetizing a skill in early retirement reduces portfolio withdrawals precisely when sequence risk is highest. Even modest bridge income &mdash; $10,000&ndash;$20,000 per year for 3&ndash;5 years &mdash; can improve success rates by <strong>2&ndash;5 percentage points</strong>.</p>
+    <div class="note"><strong>How to apply:</strong> Add Social Security as an Income Event at your target claiming age. Add a temporary Income Event for part-time bridge income during early retirement years. Compare the 5th percentile outcome before and after each change.</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Part Three: Step-by-Step Process -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="part-label">Part Three</div>
+<h2>The Step-by-Step Improvement Process</h2>
+<p>Here is a practical sequence for moving from your current situation to a stronger, more resilient retirement plan.</p>
+
+<div class="card">
+<h3>Step 1 &mdash; Establish Your Baseline</h3>
+<p>Run the simulation with your current financial picture exactly as it stands. Note the success rate, median wealth, and 5th percentile wealth. These are your benchmark numbers.</p>
+<div class="note"><strong>Inputs that matter most for accuracy:</strong> Account balances (current actual values). Annual spending (what you actually spend, not a wishful number). All income sources, including Social Security. The right start date.</div>
+</div>
+
+<div class="card">
+<h3>Step 2 &mdash; Identify Your Biggest Gap</h3>
+<ul>
+<li><strong>Success rate below 80%:</strong> Spending is too high relative to portfolio. Lever 1 first.</li>
+<li><strong>Success rate 80&ndash;89%:</strong> Workable but fragile. Any one of the six levers should push it into the 90s.</li>
+<li><strong>Success rate 90%+ but 5th percentile near zero:</strong> The headline looks good but bad sequences are dangerous. Add Lever 4 (cash buffer) and Lever 3 (guardrails).</li>
+<li><strong>After-tax wealth much lower than gross:</strong> Large tax-deferred accounts are creating a hidden liability. Lever 5 (Roth conversions).</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>Step 3 &mdash; Test One Lever at a Time</h3>
+<p>Change exactly one thing and re-run. The power of this approach is isolation: you know the impact of each change is caused by that change alone, not random variation.</p>
+<ol>
+<li><strong>Lever 1 &mdash; Spending:</strong> Reduce discretionary spending by 10%.</li>
+<li><strong>Lever 2 &mdash; Allocation:</strong> Try a more globally diversified mix.</li>
+<li><strong>Lever 3 &mdash; Strategy:</strong> Switch from Fixed to Guardrails.</li>
+<li><strong>Lever 4 &mdash; Cash Buffer:</strong> Add a 2-year cash buffer.</li>
+<li><strong>Lever 5 &mdash; Tax:</strong> Enable Roth conversion bracket filling.</li>
+<li><strong>Lever 6 &mdash; Income:</strong> Delay Social Security to age 70; add 3&ndash;5 years of bridge income.</li>
+</ol>
+</div>
+
+<div class="card">
+<h3>Step 4 &mdash; Build Your Target Scenario</h3>
+<p>Combine the changes that individually improved your results. Your target scenario should have:</p>
+<ul>
+<li>A success rate of 88&ndash;93%</li>
+<li>A 5th percentile final wealth above zero, ideally above $100,000 in today's dollars</li>
+<li>A spending level you genuinely believe you can live on</li>
+<li>A plan you understand well enough to explain to a family member</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>Step 5 &mdash; Re-Run Every Year (and at Key Decision Points)</h3>
+<ul>
+<li>After a significant market decline (&gt;15%)</li>
+<li>When you receive a significant inheritance or windfall</li>
+<li>When tax laws affecting retirement accounts change</li>
+<li>When your health or life expectancy changes meaningfully</li>
+<li>At or near major Social Security decision ages (62, 67, 70)</li>
+</ul>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Part Four: Practical Scenarios -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="part-label">Part Four</div>
+<h2>Common Scenarios</h2>
+
+<div class="card">
+<h3>A. &ldquo;My success rate is below 80%. What do I do?&rdquo;</h3>
+<p>The plan needs structural changes, not tweaks. In order of typical impact:</p>
+<ol>
+<li><strong>Reduce spending by 10&ndash;15%.</strong> If success jumps to 90%+, spending is the primary issue.</li>
+<li><strong>Delay retirement by 1&ndash;2 years.</strong> Each year is a year of savings growth and a year fewer to fund: ~3&ndash;5 pp per year.</li>
+<li><strong>Optimize Social Security.</strong> Delaying from 62 to 70 increases your monthly benefit by roughly 77% &mdash; permanently.</li>
+<li><strong>Check asset allocation.</strong> A very conservative 30/70 split may hurt long-term success by sacrificing too much return.</li>
+<li><strong>Add a 2-year cash buffer.</strong> Can close a gap of a few percentage points.</li>
+<li><strong>Explore part-time income.</strong> Even $10&ndash;15K/year for the first 5 years dramatically reduces early-retirement risk.</li>
+</ol>
+</div>
+
+<div class="card">
+<h3>B. &ldquo;My success rate is 90%. How much higher should I push it?&rdquo;</h3>
+<p>At 90%, your plan is already strong. A more productive question: what do your 5th-percentile outcomes look like? If your 5th percentile final wealth is meaningful &mdash; say $200,000+ in real terms &mdash; your plan has genuine resilience and 90% is a sound place to be.</p>
+</div>
+
+<div class="card">
+<h3>C. &ldquo;I have a large IRA. How do I think about the tax burden?&rdquo;</h3>
+<p>A $1,500,000 traditional IRA is not $1,500,000 of wealth. It is $1,500,000 minus income tax on every dollar you withdraw. At a 22% marginal rate, that is a $330,000 embedded tax liability. If you have 5&ndash;10 years between retirement and when Social Security and RMDs begin, use that window proactively &mdash; convert to Roth up to the top of your current bracket each year.</p>
+</div>
+
+<div class="card">
+<h3>D. &ldquo;Should I hold international stocks?&rdquo;</h3>
+<p>Run your simulation with a globally diversified allocation (e.g. 40% US / 20% international / 10% EM / 30% bonds) and compare the 5th percentile outcome. At current valuations, the diversified portfolio often shows a higher success rate and better worst-case results. This is not a prediction &mdash; CAPE ratios are imprecise signals and valuations can remain elevated for many years.</p>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Part Five: Limitations -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="part-label">Part Five</div>
+<h2>What Simulation Cannot Do</h2>
+
+<ul>
+<li><strong>It cannot predict markets.</strong> The simulation uses current valuations and historical patterns to generate plausible sequences. What it offers is an honest range &mdash; not certainty.</li>
+<li><strong>It assumes rational behavior.</strong> The model assumes you rebalance on schedule, follow the spending strategy, and replenish the cash buffer. Real people deviate during market stress. Results are therefore somewhat optimistic relative to actual behavior.</li>
+<li><strong>It does not model healthcare costs specifically.</strong> Medical inflation historically runs 2&ndash;3× general CPI. Consider modeling a separate high-inflation expense event for healthcare.</li>
+<li><strong>It cannot account for the unknowable.</strong> Long-term care, major home repairs, dependent adult children &mdash; these are real financial risks that fall outside what any portfolio simulator can model.</li>
+</ul>
+
+<h2>A Final Word</h2>
+<p>The purpose of this framework is not to produce a number that tells you everything is fine. It is to give you an honest picture of where you stand and which specific decisions give you the best chance of a secure retirement.</p>
+<p>Run the simulation. Understand your baseline. Apply the levers that matter for your situation. Then revisit it each year. Financial security in retirement is built through consistent, informed decisions &mdash; not one-time calculations.</p>
+
+<div class="disclaimer"><strong>Important Disclaimer:</strong> This document and the SuccessRate simulator are for informational and educational purposes only. They do not constitute financial, legal, or tax advice. Past market performance does not guarantee future results. The outputs are projections based on assumptions that may not reflect your actual circumstances or future market conditions. Always consult a qualified and independent financial adviser, tax professional, or attorney before making material financial decisions. SuccessRate is an independent software tool not affiliated with any financial institution.</div>
+
+</div><!-- /container -->
+</body>
+</html>

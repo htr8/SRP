@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SuccessRate — retirement financial planning with Monte Carlo simulation. Project portfolio outcomes, optimize taxes, and plan with confidence. All data stays in your browser." />
+    <meta name="theme-color" content="#0B1C30" />
+    <meta property="og:title" content="SuccessRate — Will Your Money Last?" />
+    <meta property="og:description" content="Monte Carlo retirement planning that runs entirely in your browser. No sign-up required for the demo." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://successrate.app/" />
+    <meta property="og:image" content="https://successrate.app/images/og-card.png" />
+    <meta property="og:image:width" content="1536" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://successrate.app/images/og-card.png" />
+    <link rel="canonical" href="https://successrate.app/" />
+    <title>SuccessRate — Will Your Money Last?</title>
+    <link rel="icon" type="image/svg+xml" href="images/logo.svg" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SuccessRate",
+      "url": "https://successrate.app/",
+      "description": "Retirement financial planning with Monte Carlo simulation. Project portfolio outcomes, optimize taxes, and plan with confidence. All data stays in your browser.",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": "Monte Carlo simulation, Tax optimization, Roth conversion planning, Social Security timing, Portfolio projections"
+    }
+    </script>
+    <base href="/SRP/" />
+    <link href="bootstrap.min.css" rel="stylesheet" />
+    <link href="fontawesome.min.css" rel="stylesheet" />
+    <link href="_content/Blazorise.Bootstrap5/blazorise.bootstrap5.css" rel="stylesheet" />
+    <link href="_content/FinancialDashboard.Shared/css/app-shared.css" rel="stylesheet" />
+    <link href="web-overrides.css" rel="stylesheet" />
+    <link href="_content/FinancialDashboard.Shared/shared-responsive.css" rel="stylesheet" />
+    <link href="_content/FinancialDashboard.Shared/portfolio.css" rel="stylesheet" />
+    <link href="landing.css" rel="stylesheet" />
+    <style>
+        /* Blazor mount point must fill viewport so height:100% in the shared stylesheet works */
+        #app { height: 100%; display: flex; flex-direction: column; }
+    </style>
+</head>
+<body>
+    <!-- Portal for ReportPreviewModal — direct child of body so position:fixed
+         is never clipped by overflow:hidden ancestors (WebView2/WKWebView bug). -->
+    <div id="report-modal-portal"></div>
+    <div id="app">
+        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#64748b">
+            Loading SuccessRate...
+        </div>
+    </div>
+    <div id="blazor-error-ui" style="display:none;background:#fef2f2;color:#dc2626;padding:12px;position:fixed;bottom:0;width:100%;text-align:center">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss" onclick="document.getElementById('blazor-error-ui').style.display='none'">Dismiss</a>
+    </div>
+    <script>
+        // Return bounding rect of an element reference — used by SelectInput fixed positioning.
+        window.getElementRect = function (el) {
+            if (!el) return { bottom: 0, left: 0, width: 200 };
+            var r = el.getBoundingClientRect();
+            return { bottom: r.bottom, left: r.left, width: r.width };
+        };
+
+        // Return bounding rect of a DOM element by ID — used by FirstRunTour spotlight positioning.
+        window.srGetElementRect = function (id) {
+            var el = document.getElementById(id);
+            if (!el) return null;
+            var r = el.getBoundingClientRect();
+            return { top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right };
+        };
+
+        // Dropdown portal: when a SelectInput opens, move its menu into a fixed
+        // portal so it escapes all overflow:hidden/auto ancestors.
+        // NOTE: The menu is always rendered in the DOM (hidden via CSS class) to
+        // avoid Blazor removeChild errors when the portal has moved the element.
+        // We detect open/close via the sel-input--open class on the parent.
+        (function () {
+            var portal = document.createElement('div');
+            portal.id = 'dropdown-portal';
+            portal.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:99999;';
+            document.body.appendChild(portal);
+
+            var activeMenu = null;
+            var activeSource = null;
+
+            function positionMenu(menu, trigger) {
+                var r = trigger.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (r.bottom + 2) + 'px';
+                menu.style.left = r.left + 'px';
+                menu.style.minWidth = r.width + 'px';
+                requestAnimationFrame(function () {
+                    if (!menu.parentNode) return;
+                    var mr = menu.getBoundingClientRect();
+                    if (mr.bottom > window.innerHeight - 8) {
+                        menu.style.top = (r.top - mr.height - 2) + 'px';
+                    }
+                });
+            }
+
+            new MutationObserver(function (mutations) {
+                mutations.forEach(function (m) {
+                    if (m.type !== 'attributes' || m.attributeName !== 'class') return;
+                    var el = m.target;
+                    if (!el.classList || !el.classList.contains('sel-input')) return;
+
+                    if (el.classList.contains('sel-input--open')) {
+                        var menu = el.querySelector('.sel-input__menu');
+                        var trigger = el.querySelector('.sel-input__trigger');
+                        if (!menu || !trigger) return;
+                        if (activeMenu) cleanup();
+                        activeSource = menu.parentNode;
+                        activeMenu = menu;
+                        menu.classList.remove('sel-input__menu--hidden');
+                        portal.appendChild(menu);
+                        positionMenu(menu, trigger);
+                    } else if (activeMenu) {
+                        cleanup();
+                    }
+                });
+            }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+            function cleanup() {
+                if (activeMenu) {
+                    if (activeSource && activeMenu.parentNode === portal) {
+                        activeSource.appendChild(activeMenu);
+                    }
+                    activeMenu.style.position = '';
+                    activeMenu.style.top = '';
+                    activeMenu.style.left = '';
+                    activeMenu.style.minWidth = '';
+                }
+                activeMenu = null;
+                activeSource = null;
+            }
+        })();
+
+        // Tooltip portal: on hover/tap, clone the tooltip box into a top-level container
+        // so it escapes ALL overflow:hidden/auto ancestors.
+        // Flips below the icon when too close to the viewport top edge.
+        (function () {
+            var portal = document.createElement('div');
+            portal.id = 'tooltip-portal';
+            portal.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:99999;pointer-events:none;';
+            document.body.appendChild(portal);
+
+            var activeBox = null;
+            var activeIcon = null;
+
+            function showPortal(icon) {
+                var tooltip = icon.closest('.info-tooltip');
+                if (!tooltip) { removeActive(); return; }
+                var srcBox = tooltip.querySelector('.info-tooltip__box');
+                if (!srcBox) return;
+
+                removeActive();
+                activeIcon = icon;
+
+                activeBox = srcBox.cloneNode(true);
+                activeBox.style.visibility = 'visible';
+                activeBox.style.opacity = '1';
+                activeBox.style.position = 'fixed';
+                activeBox.style.pointerEvents = 'none';
+                activeBox.style.width = '240px';
+                portal.appendChild(activeBox);
+
+                var r = icon.getBoundingClientRect();
+                var cx = r.left + r.width / 2;
+                var boxHeight = activeBox.offsetHeight || 120;
+                var spaceAbove = r.top;
+
+                if (spaceAbove < boxHeight + 20) {
+                    activeBox.style.top = (r.bottom + 12) + 'px';
+                    activeBox.style.left = cx + 'px';
+                    activeBox.style.transform = 'translateX(-50%)';
+                } else {
+                    activeBox.style.top = (r.top - 12) + 'px';
+                    activeBox.style.left = cx + 'px';
+                    activeBox.style.transform = 'translateX(-50%) translateY(-100%)';
+                }
+
+                var bRect = activeBox.getBoundingClientRect();
+                if (bRect.left < 8) {
+                    activeBox.style.left = (cx - bRect.left + 8) + 'px';
+                } else if (bRect.right > window.innerWidth - 8) {
+                    activeBox.style.left = (cx - (bRect.right - window.innerWidth) - 8) + 'px';
+                }
+            }
+
+            document.addEventListener('mouseover', function (e) {
+                var icon = e.target.closest('.info-tooltip__icon');
+                if (!icon) { removeActive(); return; }
+                showPortal(icon);
+            });
+
+            document.addEventListener('mouseout', function (e) {
+                var icon = e.target.closest('.info-tooltip__icon');
+                if (icon) removeActive();
+            });
+
+            // Mobile: tap to toggle
+            document.addEventListener('touchstart', function (e) {
+                var icon = e.target.closest('.info-tooltip__icon');
+                if (icon) {
+                    if (activeIcon === icon) { removeActive(); return; }
+                    showPortal(icon);
+                    return;
+                }
+                if (activeBox) removeActive();
+            });
+
+            function removeActive() {
+                if (activeBox) { portal.removeChild(activeBox); activeBox = null; }
+                activeIcon = null;
+            }
+        })();
+
+        // Browser file download helper for WebFileSaveService.
+        // Blazor WASM marshals byte[] to JS as a base64 string, not a Uint8Array,
+        // so we must decode it before constructing the Blob.
+        window.downloadFile = function(filename, bytes) {
+            var data = typeof bytes === 'string'
+                ? Uint8Array.from(atob(bytes), function(c) { return c.charCodeAt(0); })
+                : new Uint8Array(bytes);
+            var blob = new Blob([data], { type: 'application/octet-stream' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+    </script>
+    <script src="js/sqlite-interop.js?v=1779800109"></script>
+    <script src="js/chart.umd.js"></script>
+    <script type="module" src="js/charts-interop.js"></script>
+    <script src="js/idle-timeout.js"></script>
+    <script src="js/webauthn-interop.js"></script>
+    <script>
+    // ensureChartJs — called by charts-interop.js before creating charts.
+    // Chart.js is loaded eagerly above, so this resolves immediately.
+    window.ensureChartJs = function() { return Promise.resolve(); };
+    </script>
+    <script>
+    // WebCrypto-based ECDSA-P256 license key verification.
+    // Called from EcdsaLicenseValidator via IJSRuntime.
+    // .NET's ECDsa class is unsupported on 'browser' — browser WebCrypto is used instead.
+    //
+    // IMPORTANT: The signature is computed over the UTF-8 bytes of the base64url-encoded
+    // payload string (NOT the decoded JSON bytes). This matches the Tester's KeySigner.cs logic.
+    window.srVerifyLicenseKey = async function(payloadB64Url, sigB64Url, pubKeyB64) {
+        try {
+            const dec64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+            const stringToBytes = s => Uint8Array.from(new TextEncoder().encode(s));
+
+            const cryptoKey = await crypto.subtle.importKey(
+                'spki', dec64(pubKeyB64),
+                { name: 'ECDSA', namedCurve: 'P-256' },
+                false, ['verify']);
+
+            // Sign the base64url string itself (as UTF-8 bytes), not the decoded payload
+            const payloadBytes = stringToBytes(payloadB64Url);
+            const sig = dec64(sigB64Url.replace(/-/g, '+').replace(/_/g, '/').padEnd(sigB64Url.length + (4 - sigB64Url.length % 4) % 4, '='));
+
+            return await crypto.subtle.verify(
+                { name: 'ECDSA', hash: 'SHA-256' },
+                cryptoKey, sig, payloadBytes);
+        } catch (e) { console.error('[SR] verify error:', e); return false; }
+    };
+
+    // Auto-focus .db-modal-backdrop elements when added to DOM, enabling @onkeydown (Esc to close).
+    // Blazor's JS interop focusElement call is not reliable when the element is conditionally rendered.
+    window.srObserveModalFocus = function() {
+        // Selectors for focusable modal containers that use @onkeydown for Esc.
+        var FOCUSABLE = '.db-modal-backdrop[tabindex], .db-modal[tabindex], .help-modal[tabindex], .dropdown-backdrop[tabindex]';
+        function focusFirst(root) {
+            if (!root || root.nodeType !== 1) return;
+            var els = root.matches && root.matches(FOCUSABLE) ? [root]
+                    : Array.from(root.querySelectorAll ? root.querySelectorAll(FOCUSABLE) : []);
+            els.forEach(function(el) { setTimeout(function() { el.focus(); }, 0); });
+        }
+        new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                m.addedNodes.forEach(focusFirst);
+            });
+        }).observe(document.body, { childList: true, subtree: true });
+    };
+    </script>
+    <!-- IOS-STRIP-START: COI service worker + SAB check — not needed in the single-threaded iOS variant -->
+    <script>
+        // Cross-origin isolation via service worker (required for SharedArrayBuffer / WASM threading).
+        // GitHub Pages cannot set response headers, so the SW injects COOP/COEP on every fetch.
+        //
+        // SW registration is skipped when:
+        //   - crossOriginIsolated is already true (server provides headers, e.g. Azure SWA)
+        //   - Running on localhost (Debug builds use single-threaded WASM; SW header injection
+        //     would cause SRI integrity failures because the browser selects wrong asset variants)
+        //   - iOS Safari (SW registration hangs indefinitely on iOS, causing a blank loading screen)
+        //
+        // IMPORTANT: Blazor must NOT load until SW state is resolved. A stale SW from a previous
+        // session can inject COOP/COEP headers that cause the browser to select threaded asset
+        // variants (which don't exist in a Debug build), producing SRI integrity failures.
+        (async function() {
+            var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+            if (!window.crossOriginIsolated && !isIOS && !isLocalhost && "serviceWorker" in navigator) {
+                try {
+                    await navigator.serviceWorker.register("coi-serviceworker.js");
+                    if (!navigator.serviceWorker.controller) {
+                        // First install — wait for the SW to finish activating, then reload so it
+                        // controls this page and can inject COOP/COEP headers from the first fetch.
+                        // serviceWorker.ready is more reliable than a timed message on fast CDNs;
+                        // a 10 s outer timeout prevents hanging if activation stalls.
+                        try {
+                            await Promise.race([
+                                navigator.serviceWorker.ready,
+                                new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000))
+                            ]);
+                            location.reload();
+                            return; // Reloading — don't double-load Blazor
+                        } catch {
+                            // SW didn't activate in time — load Blazor in single-threaded fallback
+                        }
+                    }
+                } catch(e) { /* SW unavailable — proceed without cross-origin isolation */ }
+            } else if (isLocalhost && "serviceWorker" in navigator) {
+                // On localhost, unregister any stale COI SW left from a previous deployed session
+                // so SRI integrity checks pass for the current (likely Debug) build.
+                var regs = await navigator.serviceWorker.getRegistrations();
+                var stale = regs.filter(r => r.active?.scriptURL?.includes("coi-serviceworker"));
+                if (stale.length > 0) {
+                    await Promise.all(stale.map(r => r.unregister()));
+                    location.reload();
+                    return;
+                }
+            }
+            // The Release build uses WasmEnableThreads=true, which requires SharedArrayBuffer.
+            // Without COOP/COEP headers (e.g. iOS Safari without the service worker),
+            // SharedArrayBuffer is unavailable and the threaded WASM cannot run.
+            // Redirect to the single-threaded iOS variant at /ios/ instead of hanging.
+            // On localhost the Debug build is single-threaded and doesn't need SAB — skip redirect.
+            if (typeof SharedArrayBuffer === 'undefined' && !isLocalhost) {
+                if (!location.href.includes('/ios/')) {
+                    // Use document.baseURI so the redirect is always relative to the
+                    // app base (handles missing trailing slash and subpath deploys).
+                    location.replace(document.baseURI + 'ios/');
+                }
+                // Already at /ios/ but SAB still missing — something unexpected.
+                // Fall through and let the iOS build attempt to load anyway.
+                return;
+            }
+
+            // SW state resolved — load Blazor
+            var s = document.createElement("script");
+            s.src = "_framework/blazor.webassembly.js";
+            document.body.appendChild(s);
+        })();
+    </script>
+    <!-- IOS-STRIP-END -->
+</body>
+</html>

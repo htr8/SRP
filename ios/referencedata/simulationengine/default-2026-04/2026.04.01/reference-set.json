@@ -1,0 +1,321 @@
+{
+  "ReferenceSetId": "default-2026-04",
+  "EffectiveTaxYear": 2026,
+  "SourceName": "PlannerGradeReferenceData",
+  "SourceVersion": "2026.04.01",
+  "StandardDeductions": {
+    "Single": 16100,
+    "MarriedFilingJointly": 32200,
+    "MarriedFilingSeparately": 16100,
+    "HeadOfHousehold": 24150
+  },
+  "FederalIncomeTaxBrackets": {
+    "Single": [
+      { "LowerBound": 0, "UpperBound": 12400, "Rate": 0.10 },
+      { "LowerBound": 12400, "UpperBound": 50400, "Rate": 0.12 },
+      { "LowerBound": 50400, "UpperBound": 105700, "Rate": 0.22 },
+      { "LowerBound": 105700, "UpperBound": 201775, "Rate": 0.24 },
+      { "LowerBound": 201775, "UpperBound": 256225, "Rate": 0.32 },
+      { "LowerBound": 256225, "UpperBound": 640600, "Rate": 0.35 },
+      { "LowerBound": 640600, "UpperBound": null, "Rate": 0.37 }
+    ],
+    "MarriedFilingJointly": [
+      { "LowerBound": 0, "UpperBound": 24800, "Rate": 0.10 },
+      { "LowerBound": 24800, "UpperBound": 100800, "Rate": 0.12 },
+      { "LowerBound": 100800, "UpperBound": 211400, "Rate": 0.22 },
+      { "LowerBound": 211400, "UpperBound": 403550, "Rate": 0.24 },
+      { "LowerBound": 403550, "UpperBound": 512450, "Rate": 0.32 },
+      { "LowerBound": 512450, "UpperBound": 768700, "Rate": 0.35 },
+      { "LowerBound": 768700, "UpperBound": null, "Rate": 0.37 }
+    ],
+    "MarriedFilingSeparately": [
+      { "LowerBound": 0, "UpperBound": 12400, "Rate": 0.10 },
+      { "LowerBound": 12400, "UpperBound": 50400, "Rate": 0.12 },
+      { "LowerBound": 50400, "UpperBound": 105700, "Rate": 0.22 },
+      { "LowerBound": 105700, "UpperBound": 201775, "Rate": 0.24 },
+      { "LowerBound": 201775, "UpperBound": 256225, "Rate": 0.32 },
+      { "LowerBound": 256225, "UpperBound": 384350, "Rate": 0.35 },
+      { "LowerBound": 384350, "UpperBound": null, "Rate": 0.37 }
+    ],
+    "HeadOfHousehold": [
+      { "LowerBound": 0, "UpperBound": 17700, "Rate": 0.10 },
+      { "LowerBound": 17700, "UpperBound": 67450, "Rate": 0.12 },
+      { "LowerBound": 67450, "UpperBound": 105700, "Rate": 0.22 },
+      { "LowerBound": 105700, "UpperBound": 201750, "Rate": 0.24 },
+      { "LowerBound": 201750, "UpperBound": 256200, "Rate": 0.32 },
+      { "LowerBound": 256200, "UpperBound": 640600, "Rate": 0.35 },
+      { "LowerBound": 640600, "UpperBound": null, "Rate": 0.37 }
+    ]
+  },
+  "CapitalGainsTaxBrackets": {
+    "Single": [
+      { "LowerBound": 0, "UpperBound": 49450, "Rate": 0.0 },
+      { "LowerBound": 49450, "UpperBound": 545500, "Rate": 0.15 },
+      { "LowerBound": 545500, "UpperBound": null, "Rate": 0.20 }
+    ],
+    "MarriedFilingJointly": [
+      { "LowerBound": 0, "UpperBound": 98900, "Rate": 0.0 },
+      { "LowerBound": 98900, "UpperBound": 613700, "Rate": 0.15 },
+      { "LowerBound": 613700, "UpperBound": null, "Rate": 0.20 }
+    ],
+    "MarriedFilingSeparately": [
+      { "LowerBound": 0, "UpperBound": 49450, "Rate": 0.0 },
+      { "LowerBound": 49450, "UpperBound": 306850, "Rate": 0.15 },
+      { "LowerBound": 306850, "UpperBound": null, "Rate": 0.20 }
+    ],
+    "HeadOfHousehold": [
+      { "LowerBound": 0, "UpperBound": 66200, "Rate": 0.0 },
+      { "LowerBound": 66200, "UpperBound": 579600, "Rate": 0.15 },
+      { "LowerBound": 579600, "UpperBound": null, "Rate": 0.20 }
+    ]
+  },
+  "StateIncomeTaxProfiles": {
+    "CO": {
+      "BaseMethod": 0,
+      "Brackets": [
+        { "LowerBound": 0, "UpperBound": null, "Rate": 0.044 }
+      ],
+      "StandardDeductions": null,
+      "ProvenanceSummary": "Colorado taxes modified federal taxable income at a flat 4.4% rate.",
+      "ProvenanceCitation": "Colorado Department of Revenue Individual Income Tax Guide and Individual Income Tax FAQ (official published flat rate 4.4%)."
+    },
+    "VA": {
+      "BaseMethod": 1,
+      "Brackets": [
+        { "LowerBound": 0, "UpperBound": 3000, "Rate": 0.02 },
+        { "LowerBound": 3000, "UpperBound": 5000, "Rate": 0.03 },
+        { "LowerBound": 5000, "UpperBound": 17000, "Rate": 0.05 },
+        { "LowerBound": 17000, "UpperBound": null, "Rate": 0.0575 }
+      ],
+      "StandardDeductions": {
+        "Single": 8750,
+        "MarriedFilingJointly": 17500,
+        "MarriedFilingSeparately": 8750,
+        "HeadOfHousehold": 8750
+      },
+      "ProvenanceSummary": "Virginia taxable income starts from federal adjusted gross income, reduced here by Virginia's published standard deduction before applying the official Virginia individual rate schedule.",
+      "ProvenanceCitation": "Virginia Tax Deductions page (standard deduction amounts) and Miscellaneous Filing page (individual income tax rate schedule)."
+    }
+  },
+  "NiitThresholds": {
+    "Single": 200000,
+    "HeadOfHousehold": 200000,
+    "MarriedFilingJointly": 250000,
+    "MarriedFilingSeparately": 125000
+  },
+  "NiitRate": 0.038,
+  "IrmaaBrackets": {
+    "Single": [
+      { "UpperBound": 109000, "PartBMonthlySurcharge": 0, "PartDMonthlySurcharge": 0 },
+      { "UpperBound": 137000, "PartBMonthlySurcharge": 81.20, "PartDMonthlySurcharge": 14.50 },
+      { "UpperBound": 171000, "PartBMonthlySurcharge": 202.90, "PartDMonthlySurcharge": 37.50 },
+      { "UpperBound": 205000, "PartBMonthlySurcharge": 324.60, "PartDMonthlySurcharge": 60.40 },
+      { "UpperBound": 500000, "PartBMonthlySurcharge": 446.30, "PartDMonthlySurcharge": 83.30 },
+      { "UpperBound": null, "PartBMonthlySurcharge": 487.00, "PartDMonthlySurcharge": 91.00 }
+    ],
+    "MarriedFilingJointly": [
+      { "UpperBound": 218000, "PartBMonthlySurcharge": 0, "PartDMonthlySurcharge": 0 },
+      { "UpperBound": 274000, "PartBMonthlySurcharge": 81.20, "PartDMonthlySurcharge": 14.50 },
+      { "UpperBound": 342000, "PartBMonthlySurcharge": 202.90, "PartDMonthlySurcharge": 37.50 },
+      { "UpperBound": 410000, "PartBMonthlySurcharge": 324.60, "PartDMonthlySurcharge": 60.40 },
+      { "UpperBound": 750000, "PartBMonthlySurcharge": 446.30, "PartDMonthlySurcharge": 83.30 },
+      { "UpperBound": null, "PartBMonthlySurcharge": 487.00, "PartDMonthlySurcharge": 91.00 }
+    ],
+    "HeadOfHousehold": [
+      { "UpperBound": 109000, "PartBMonthlySurcharge": 0, "PartDMonthlySurcharge": 0 },
+      { "UpperBound": 137000, "PartBMonthlySurcharge": 81.20, "PartDMonthlySurcharge": 14.50 },
+      { "UpperBound": 171000, "PartBMonthlySurcharge": 202.90, "PartDMonthlySurcharge": 37.50 },
+      { "UpperBound": 205000, "PartBMonthlySurcharge": 324.60, "PartDMonthlySurcharge": 60.40 },
+      { "UpperBound": 500000, "PartBMonthlySurcharge": 446.30, "PartDMonthlySurcharge": 83.30 },
+      { "UpperBound": null, "PartBMonthlySurcharge": 487.00, "PartDMonthlySurcharge": 91.00 }
+    ],
+    "MarriedFilingSeparately": [
+      { "UpperBound": 109000, "PartBMonthlySurcharge": 0, "PartDMonthlySurcharge": 0 },
+      { "UpperBound": 391000, "PartBMonthlySurcharge": 446.30, "PartDMonthlySurcharge": 83.30 },
+      { "UpperBound": null, "PartBMonthlySurcharge": 487.00, "PartDMonthlySurcharge": 91.00 }
+    ]
+  },
+  "UniformLifetimeDivisors": {
+    "72": 27.4,
+    "73": 26.5,
+    "74": 25.5,
+    "75": 24.6,
+    "76": 23.7,
+    "77": 22.9,
+    "78": 22.0,
+    "79": 21.1,
+    "80": 20.2,
+    "81": 19.4,
+    "82": 18.5,
+    "83": 17.7,
+    "84": 16.8,
+    "85": 16.0,
+    "86": 15.2,
+    "87": 14.4,
+    "88": 13.7,
+    "89": 12.9,
+    "90": 12.2,
+    "91": 11.5,
+    "92": 10.8,
+    "93": 10.1,
+    "94": 9.5,
+    "95": 8.9,
+    "96": 8.4,
+    "97": 7.8,
+    "98": 7.3,
+    "99": 6.8,
+    "100": 6.4,
+    "101": 6.0,
+    "102": 5.6,
+    "103": 5.2,
+    "104": 4.9,
+    "105": 4.6,
+    "106": 4.3,
+    "107": 4.1,
+    "108": 3.9,
+    "109": 3.7,
+    "110": 3.5,
+    "111": 3.4,
+    "112": 3.3,
+    "113": 3.1,
+    "114": 3.0,
+    "115": 2.9,
+    "116": 2.8,
+    "117": 2.7,
+    "118": 2.5,
+    "119": 2.3,
+    "120": 2.0
+  },
+  "PlannerGradeThroughYear": 2026,
+  "ProvenanceSummary": "Planner-grade default bundle for 2026 projection starts. Federal tax, capital-gains, standard-deduction, NIIT, IRMAA, RMD, Colorado, and Virginia tables are pinned to named official-source inputs with explicit future-year extrapolation rules.",
+  "SourceProvenance": [
+    {
+      "TableId": "standard-deductions",
+      "SourceName": "Internal Revenue Service",
+      "SourceCitation": "IRS IR-2025-103 and Revenue Procedure 2025-32, tax year 2026 standard deduction amounts.",
+      "SourceUrl": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "SourceDate": "2025-10-09",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Mapped IRS filing-status labels to engine filing-status keys without rounding."
+    },
+    {
+      "TableId": "federal-income-tax-brackets",
+      "SourceName": "Internal Revenue Service",
+      "SourceCitation": "Revenue Procedure 2025-32, Section 4.01, 2026 tax rate tables.",
+      "SourceUrl": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "SourceDate": "2025-10-09",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Converted IRS bracket endpoints into lower-bound, upper-bound, rate rows by filing status."
+    },
+    {
+      "TableId": "capital-gains-tax-brackets",
+      "SourceName": "Internal Revenue Service",
+      "SourceCitation": "Revenue Procedure 2025-32, Section 4.03, maximum capital gains rate thresholds for 2026.",
+      "SourceUrl": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "SourceDate": "2025-10-09",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Modeled 0%, 15%, and 20% qualified dividend and long-term capital gain bands by filing status."
+    },
+    {
+      "TableId": "niit-thresholds",
+      "SourceName": "Internal Revenue Service",
+      "SourceCitation": "IRS Net Investment Income Tax page, statutory 3.8% rate and filing-status thresholds.",
+      "SourceUrl": "https://www.irs.gov/individuals/net-investment-income-tax",
+      "SourceDate": "2025-07-01",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Stored statutory thresholds as fixed-dollar values because they are not indexed in this engine contract."
+    },
+    {
+      "TableId": "irmaa-brackets",
+      "SourceName": "Social Security Administration",
+      "SourceCitation": "SSA Monthly Medicare Premiums for 2026 chart for Part B and prescription drug coverage IRMAA tiers.",
+      "SourceUrl": "https://www.ssa.gov/benefits/medicare/medicare-premiums.html",
+      "SourceDate": "2026",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Stored the income thresholds and monthly Part B and Part D surcharge components; standard premium amounts are not modeled as surcharges."
+    },
+    {
+      "TableId": "uniform-lifetime-divisors",
+      "SourceName": "Internal Revenue Service",
+      "SourceCitation": "IRS Notice 2022-6, Appendix A, Uniform Lifetime Table.",
+      "SourceUrl": "https://www.irs.gov/irb/2022-05_IRB",
+      "SourceDate": "2022-01-24",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Stored age-to-divisor rows for ages 72 through 120."
+    },
+    {
+      "TableId": "state-income-tax-profiles",
+      "SourceName": "Colorado Department of Revenue and Virginia Tax",
+      "SourceCitation": "Official Colorado flat individual income tax rate guidance and Virginia standard deduction and individual income tax rate schedule guidance.",
+      "SourceUrl": "https://tax.colorado.gov/individual-income-tax-guide",
+      "SourceDate": "2026",
+      "RetrievedDate": "2026-05-03",
+      "TransformationNotes": "Bundled CO and VA as the currently supported state profiles; unsupported states remain explicit missing-profile warnings."
+    }
+  ],
+  "ExtrapolationRules": [
+    {
+      "TableId": "federal-income-tax-brackets",
+      "RuleId": "statutory-indexing-from-2026-base",
+      "RuleDescription": "Use the 2026 planner-grade base table for the start year; future projection years follow the engine's deterministic tax-bracket inflation path rather than a refreshed statutory bundle.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Refresh this bundle when IRS publishes a later annual revenue procedure."
+    },
+    {
+      "TableId": "standard-deductions",
+      "RuleId": "statutory-indexing-from-2026-base",
+      "RuleDescription": "Use the 2026 planner-grade base standard deduction amounts; future years follow the engine's deterministic inflation path.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Refresh this bundle when IRS publishes a later annual revenue procedure."
+    },
+    {
+      "TableId": "capital-gains-tax-brackets",
+      "RuleId": "statutory-indexing-from-2026-base",
+      "RuleDescription": "Use the 2026 planner-grade base preferential-rate thresholds; future years follow the engine's deterministic inflation path.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Refresh this bundle when IRS publishes a later annual revenue procedure."
+    },
+    {
+      "TableId": "niit-thresholds",
+      "RuleId": "fixed-statutory-thresholds",
+      "RuleDescription": "Carry statutory NIIT thresholds forward as fixed nominal values unless Congress changes the law.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "The engine intentionally does not inflate NIIT thresholds."
+    },
+    {
+      "TableId": "irmaa-brackets",
+      "RuleId": "published-2026-table-fixed-until-refresh",
+      "RuleDescription": "Use the published 2026 IRMAA tiers as the base table; future projection years use the engine's deterministic projection behavior until a later CMS/SSA table bundle is added.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Refresh annually after CMS and SSA publish the next premium and IRMAA tables."
+    },
+    {
+      "TableId": "uniform-lifetime-divisors",
+      "RuleId": "regulatory-table",
+      "RuleDescription": "Use the IRS Uniform Lifetime Table divisors as fixed regulatory age factors.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Refresh only if IRS updates the life expectancy tables."
+    },
+    {
+      "TableId": "state-income-tax-profiles",
+      "RuleId": "supported-state-current-law-fixed",
+      "RuleDescription": "Use bundled CO and VA state profiles as current-law state approximations; future years keep the stated profiles unless a new bundle updates them.",
+      "BaseYear": 2026,
+      "FirstProjectedYear": 2027,
+      "PlannerGradeThroughYear": 2026,
+      "ProvenanceNote": "Add state-specific annual refreshes before treating long-horizon state tax as statutory reference data."
+    }
+  ]
+}

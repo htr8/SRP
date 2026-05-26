@@ -1,0 +1,216 @@
+/* ── Shared responsive primitives ──────────────────────────────────────────
+   Breakpoints (matching existing app.css):
+     480px  — small phone
+     768px  — primary mobile/tablet threshold
+     1100px — tablet/desktop
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* ── Visibility helpers ─────────────────────────────────────────────────── */
+.desktop-only { display: revert; }
+.mobile-only  { display: none; }
+
+@media (max-width: 768px) {
+    .desktop-only { display: none !important; }
+    .mobile-only  { display: revert !important; }
+}
+
+/* ── ResponsiveTable ────────────────────────────────────────────────────── */
+.responsive-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.responsive-table th,
+.responsive-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.responsive-table th {
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, #64748b);
+}
+
+.responsive-table tbody tr:hover {
+    background: var(--hover-bg, rgba(0,0,0,0.02));
+}
+
+/* Card list (mobile) */
+.responsive-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rt-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.rt-card-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.rt-card-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 0.9rem;
+}
+
+.rt-card-row > span:first-child {
+    color: var(--text-muted, #64748b);
+}
+
+/* ── DashboardCard ──────────────────────────────────────────────────────── */
+.dashboard-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    transition: box-shadow 0.15s;
+    cursor: default;
+    min-height: 44px; /* touch target */
+}
+
+.dashboard-card[onclick] {
+    cursor: pointer;
+}
+
+.dashboard-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.dc-icon {
+    font-size: 1.4rem;
+    color: var(--accent, #3b82f6);
+    flex-shrink: 0;
+    width: 36px;
+    text-align: center;
+}
+
+.dc-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.dc-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 2px;
+}
+
+.dc-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.dc-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted, #64748b);
+    margin-top: 2px;
+}
+
+.dc-extra {
+    margin-top: 8px;
+}
+
+/* ── Dashboard card color variants ──────────────────────────────────────── */
+.dashboard-card.dc--green { border-left: 4px solid #22c55e; }
+.dashboard-card.dc--green .dc-value { color: #16a34a; }
+.dashboard-card.dc--amber { border-left: 4px solid #f59e0b; }
+.dashboard-card.dc--amber .dc-value { color: #d97706; }
+.dashboard-card.dc--red { border-left: 4px solid #ef4444; }
+.dashboard-card.dc--red .dc-value { color: #dc2626; }
+
+/* ── Unified dashboard ──────────────────────────────────────────────────── */
+.unified-dashboard__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+}
+
+.unified-dashboard__extra {
+    margin-top: 20px;
+}
+
+/* ── Dashboard grid ─────────────────────────────────────────────────────── */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 1100px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
+
+/* ── Mobile filter bar ──────────────────────────────────────────────────── */
+.mobile-filter-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 0;
+    scrollbar-width: none;
+}
+
+.mobile-filter-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.mobile-filter-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--card-bg, #fff);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+    min-height: 44px; /* touch target */
+    display: flex;
+    align-items: center;
+}
+
+.mobile-filter-chip.active {
+    background: var(--accent, #3b82f6);
+    color: #fff;
+    border-color: var(--accent, #3b82f6);
+}
+
+/* ── iOS safe area support ──────────────────────────────────────────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+    .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* ── Input font size (prevents iOS zoom) ────────────────────────────────── */
+@media (max-width: 768px) {
+    input, select, textarea {
+        font-size: 16px;
+    }
+}
