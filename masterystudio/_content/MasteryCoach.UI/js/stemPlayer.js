@@ -448,9 +448,18 @@ export async function loadFromStreams(descriptors) {
         applyGains();
         doneUnits = totalUnits;
         reportProgress(); // graph built — 100%
+        console.warn(`[stems-engine] stretch OK (${state.stems.length} stems, ${maxDuration.toFixed(1)}s)`);
         return loaded;
     } catch (err) {
-        console.warn('Stretch engine unavailable for stems; using classic mechanism:', err);
+        // #62: a stretch-graph build failure drops stems to the CLASSIC engine, whose per-source
+        // playbackRate changes PITCH with tempo (a record-player detune — "pitch and speed go up/down
+        // together"). This is the leading cause of that report on iOS. Log it LOUDLY with the reason and
+        // stem count/channel total (addBuffers moves N×2 channels of full-song PCM into the WASM
+        // worklet — a heap/DataCloneError here is the usual culprit), so /diagnostics shows WHY we fell
+        // back rather than leaving a silent detune. console.error (not warn) so the errorCapture
+        // re-entrancy guard is less likely to drop it.
+        const chans = state.stems.length * 2;
+        console.error(`[stems-engine] STRETCH BUILD FAILED → classic (detunes on tempo change). stems=${state.stems.length} channels=${chans} err=${err && err.name}: ${err && err.message}`);
         teardownStretchGraph();
     }
 
