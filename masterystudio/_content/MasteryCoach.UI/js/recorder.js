@@ -36,6 +36,38 @@ function micGetUserMedia(constraints) {
     return navigator.mediaDevices.getUserMedia(constraints);
 }
 
+// ONE long-lived mic stream, shared by the recorder, the calibrator, and the level meter. iOS
+// re-shows its capture prompt on every FRESH getUserMedia (the WKUIDelegate grant isn't persisted
+// per-origin), so fully tearing the stream down and re-acquiring per action made iOS re-prompt on
+// every record/calibrate (user report 2026-07-11). Keeping ONE stream alive across actions means no
+// fresh getUserMedia between them → no re-prompt. The stream is only released on a device change or
+// an explicit release (releaseSharedMic). Keyed by deviceId so switching inputs re-acquires.
+const shared = { stream: null, deviceId: undefined };
+
+async function getSharedMicStream(deviceId) {
+    const key = deviceId ?? '';
+    // Reuse the live stream when it's for the same device AND still usable (a track can end if the OS
+    // revokes it or the device is unplugged — re-acquire in that case).
+    if (shared.stream && (shared.deviceId ?? '') === key
+        && shared.stream.getTracks().some(t => t.readyState === 'live')) {
+        return shared.stream;
+    }
+    releaseSharedMic(); // device changed or the old stream died — drop it before acquiring a new one
+    shared.stream = await micGetUserMedia({ audio: micConstraints(deviceId) });
+    shared.deviceId = deviceId;
+    return shared.stream;
+}
+
+// Fully stop and drop the shared stream (device change / page teardown). The NEXT getSharedMicStream
+// will re-acquire — which on iOS costs one prompt, so callers avoid this between consecutive actions.
+export function releaseSharedMic() {
+    if (shared.stream) {
+        for (const track of shared.stream.getTracks()) track.stop();
+        shared.stream = null;
+    }
+    shared.deviceId = undefined;
+}
+
 // Shared mic constraints (music recording: no voice-call processing). deviceId narrows to the
 // user's picked input; undefined lets the OS default win.
 function micConstraints(deviceId) {
@@ -86,7 +118,7 @@ export async function start(deviceId) {
         // Reset the cache on failure — a transient load error must not poison every future
         // recording until page reload (review finding).
         state.workletReady = ctx.audioWorklet
-            .addModule('/_content/MasteryCoach.UI/js/captureProcessor.js')
+            .addModule('_content/MasteryCoach.UI/js/captureProcessor.js')
             .catch((err) => { state.workletReady = null; throw err; });
     }
     await state.workletReady;
@@ -96,7 +128,8 @@ export async function start(deviceId) {
     // it was valid for the take the whole time it played (review finding).
     state.gridAtStart = getGrid();
 
-    state.stream = await micGetUserMedia({ audio: micConstraints(deviceId) });
+    // Reuse the shared, already-granted stream (no fresh getUserMedia → no iOS re-prompt).
+    state.stream = await getSharedMicStream(deviceId);
 
     state.chunks = [];
     state.startCtxTime = null;
@@ -160,10 +193,10 @@ export function stop() {
         try { state.sourceNode.disconnect(); } catch { /* ignore */ }
         state.sourceNode = null;
     }
-    if (state.stream) {
-        for (const track of state.stream.getTracks()) track.stop();
-        state.stream = null;
-    }
+    // Disconnect our graph nodes but DO NOT stop the stream's tracks — the shared mic stream stays alive
+    // so the next record/calibrate reuses it without a fresh getUserMedia (no iOS re-prompt). The stream
+    // is released only on a device change or releaseSharedMic().
+    state.stream = null;
 
     const total = state.chunks.reduce((n, c) => n + c.length, 0);
     let samples = new Float32Array(total);
@@ -250,10 +283,11 @@ export async function startInputMeter(canvas, deviceId) {
     const ctx = getSharedContext();
     if (ctx.state === 'suspended') await ctx.resume();
 
-    const stream = await micGetUserMedia({ audio: micConstraints(deviceId) });
+    // Pull from the SHARED mic stream (see getSharedMicStream) so arming the meter, then calibrating,
+    // then recording all reuse one granted stream — no per-action getUserMedia, no iOS re-prompt.
+    const stream = await getSharedMicStream(deviceId);
     if (gen !== meter.gen) {
-        for (const track of stream.getTracks()) track.stop();
-        return;
+        return; // superseded — leave the shared stream alone (a later start/stop owns its lifecycle)
     }
 
     meter.stream = stream;
@@ -307,10 +341,9 @@ export function stopInputMeter() {
     if (meter.raf) { cancelAnimationFrame(meter.raf); meter.raf = 0; }
     if (meter.ctxSrc) { try { meter.ctxSrc.disconnect(); } catch { /* ignore */ } meter.ctxSrc = null; }
     meter.analyser = null;
-    if (meter.stream) {
-        for (const track of meter.stream.getTracks()) track.stop();
-        meter.stream = null;
-    }
+    // Drop our reference to the shared stream but DON'T stop its tracks — the recorder/calibrator reuse
+    // it (no re-prompt). The shared stream is released only on device change / releaseSharedMic().
+    meter.stream = null;
     if (meter.canvas) {
         try { meter.canvas.getContext('2d').clearRect(0, 0, meter.canvas.width, meter.canvas.height); } catch { /* gone */ }
         meter.canvas = null;
