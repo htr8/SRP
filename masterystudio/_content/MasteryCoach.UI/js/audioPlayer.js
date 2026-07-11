@@ -439,7 +439,7 @@ async function ensureElementGraph() {
 
     if (ctx.audioWorklet) {
         try {
-            await ctx.audioWorklet.addModule('_content/MasteryCoach.UI/js/pitchShiftProcessor.js');
+            await ctx.audioWorklet.addModule('./_content/MasteryCoach.UI/js/pitchShiftProcessor.js');
             state.pitchNode = new AudioWorkletNode(ctx, 'pitch-shift-processor');
             state.sourceNode.connect(state.pitchNode).connect(ensurePanner());
             applyElementPitch();

@@ -118,7 +118,7 @@ export async function start(deviceId) {
         // Reset the cache on failure — a transient load error must not poison every future
         // recording until page reload (review finding).
         state.workletReady = ctx.audioWorklet
-            .addModule('_content/MasteryCoach.UI/js/captureProcessor.js')
+            .addModule('./_content/MasteryCoach.UI/js/captureProcessor.js')
             .catch((err) => { state.workletReady = null; throw err; });
     }
     await state.workletReady;

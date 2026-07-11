@@ -209,7 +209,7 @@ async function ensureClassicGraph() {
     state.classic.bus = ctx.createGain();
     if (ctx.audioWorklet) {
         try {
-            await ctx.audioWorklet.addModule('_content/MasteryCoach.UI/js/pitchShiftProcessor.js');
+            await ctx.audioWorklet.addModule('./_content/MasteryCoach.UI/js/pitchShiftProcessor.js');
             state.classic.pitchNode = new AudioWorkletNode(ctx, 'pitch-shift-processor');
             state.classic.bus.connect(state.classic.pitchNode).connect(ensurePanner());
             applyClassicPitch();
@@ -938,7 +938,7 @@ export async function renderMix() {
 
     // Load the stereo capture worklet once (same path convention as the pitch worklet).
     if (!mixCaptureModuleLoaded) {
-        await ctx.audioWorklet.addModule('_content/MasteryCoach.UI/js/mixCaptureProcessor.js');
+        await ctx.audioWorklet.addModule('./_content/MasteryCoach.UI/js/mixCaptureProcessor.js');
         mixCaptureModuleLoaded = true;
     }
 
