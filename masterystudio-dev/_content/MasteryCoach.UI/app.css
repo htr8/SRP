@@ -482,6 +482,95 @@ body {
 .studio-console .control-toolbar,
 .studio-console .control-toolbar-scrollrow,
 .studio-console .control-toolbar-pinned { padding-top: 0; padding-bottom: 0; }
+
+/* Defensive console-scoped toolbar layout. In Chromium the later generic toolbar block can be parsed as
+   nested selectors if a preceding CSS edit leaves it in an invalid nesting context; keep the Practice
+   console usable by declaring the essential row layout here, beside the console rules that already
+   apply. */
+.studio-console .control-toolbar-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+.studio-console .control-toolbar-scrollrow {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.studio-console .control-toolbar {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.studio-console .control-toolbar::-webkit-scrollbar { display: none; }
+.studio-console .control-toolbar-pinned {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.studio-console .control-toolbar-pinned::-webkit-scrollbar { display: none; }
+.studio-console .toolbar-select {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: stretch;
+    height: 30px;
+    max-width: 220px;
+}
+.studio-console .toolbar-select select {
+    height: 30px;
+    max-width: 220px;
+    padding: 0 10px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1;
+    vertical-align: top;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+.studio-console .toolbar-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+.studio-console .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
 .studio-console .toolbar-scroll-chevron {
     margin-bottom: 0;
     color: var(--muted);
