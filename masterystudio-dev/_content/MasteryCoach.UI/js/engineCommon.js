@@ -91,11 +91,14 @@ export function resamplePeaksFlat(p, buckets, durationSeconds, startSeconds, end
     const { lo, hi, span } = peaksWindow(p.min.length, durationSeconds, startSeconds, endSeconds);
     const out = new Array(buckets * 3);
     for (let b = 0; b < buckets; b++) {
-        // Nearest-neighbour resample of the (windowed) pre-bucketed peaks.
+        // Nearest-neighbour resample of the (windowed) pre-bucketed peaks. Coerce any missing/NaN sample
+        // to 0: an out-of-range index yields `undefined`, which serializes to JSON as `null` and crashes
+        // the C# float[] deserialize (DeserializeUnableToConvertValue). `+x || 0` maps undefined/NaN → 0
+        // while leaving every real (incl. negative) value untouched. Defensive across all callers.
         const i = Math.min(hi - 1, lo + Math.floor((b / buckets) * span));
-        out[b] = p.min[i];
-        out[buckets + b] = p.max[i];
-        out[buckets * 2 + b] = p.rms[i];
+        out[b] = +p.min[i] || 0;
+        out[buckets + b] = +p.max[i] || 0;
+        out[buckets * 2 + b] = +p.rms[i] || 0;
     }
     return out;
 }

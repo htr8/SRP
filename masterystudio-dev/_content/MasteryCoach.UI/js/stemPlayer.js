@@ -1415,9 +1415,15 @@ export function getPeaks(buckets, startSeconds, endSeconds) {
         .filter(p => p != null);
     if (sources.length === 0) return null;
 
-    let combined = sources[0]; // all cached at the same resolution (peakBucketsFor keys on duration, shared by a song's stems)
+    let combined = sources[0];
     if (sources.length > 1) {
-        const src = combined.min.length;
+        // Stems of a set can differ by a few samples (or, rarely, sample rate), so peakBucketsFor —
+        // duration-derived — can hand back DIFFERENT bucket counts per stem. Combine over the SHORTEST
+        // source so no read runs past a shorter array: reading p.min[i] past its end yields undefined,
+        // which serialized to JSON as `null` and crashed the C# float[] deserialize (user report:
+        // "changing to stems … DeserializeUnableToConvertValue … Path $[50]"). The tail beyond the
+        // shortest stem is a hair of trailing audio; dropping it from the mix envelope is imperceptible.
+        const src = Math.min(...sources.map(p => p.min.length));
         const min = new Float32Array(src), max = new Float32Array(src), rms = new Float32Array(src);
         for (let i = 0; i < src; i++) {
             let lo = 0, hi = 0, sumSq = 0;

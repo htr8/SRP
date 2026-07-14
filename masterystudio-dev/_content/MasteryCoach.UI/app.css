@@ -2045,6 +2045,11 @@ button.primary {
     gap: 6px;
     padding-bottom: 4px;
     overflow-x: auto;
+    /* Clip vertical overflow explicitly. overflow-x:auto alone makes overflow-y compute to 'auto', so a
+       horizontal-overflow (e.g. revealing the count-in 4|8 + entry) reserves a HORIZONTAL scrollbar gutter
+       that grew the row's height even though its children are all 30px (user report: "stays on one line,
+       row gets taller"). It's a one-line horizontal strip; nothing should ever scroll it vertically. */
+    overflow-y: hidden;
     scrollbar-width: none;         /* Firefox — chevrons replace the scrollbar */
     -ms-overflow-style: none;      /* old Edge */
 }
@@ -2064,6 +2069,7 @@ button.primary {
     gap: 6px;
     padding-bottom: 4px;
     overflow-x: auto;
+    overflow-y: hidden; /* horizontal strip only — never reserve a vertical scrollbar gutter (see .control-toolbar) */
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -2097,6 +2103,7 @@ button.primary {
     .control-toolbar-wrap:has(.control-toolbar-pinned) {
         flex-wrap: nowrap;
         overflow-x: auto;
+        overflow-y: hidden; /* horizontal strip — a vertical scrollbar gutter grew the row on the phone (user report) */
         scrollbar-width: none;      /* Firefox */
         -ms-overflow-style: none;   /* old Edge */
     }
@@ -2132,6 +2139,8 @@ button.primary {
         flex-direction: row;
         flex-wrap: nowrap;
         overflow-x: auto;
+        overflow-y: hidden; /* horizontal strip only — the vertical scrollbar gutter grew the row height
+                               when the count-in settings overflowed it (user report, phone) */
         scrollbar-width: none;
         -ms-overflow-style: none;
     }
