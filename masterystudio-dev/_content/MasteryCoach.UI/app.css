@@ -13,6 +13,7 @@
     --wave-played: #e44c2a;
     --wave-unplayed: #55636e;
     --wave-body: rgba(120, 138, 150, 0.5);
+    --midi-hit: #8bd3ff;
     --loop-band: rgba(240, 195, 90, 0.16);
     --loop-edge: #f0c35a;
     /* Saved loops: BLUE, distinct from the gold active loop, so users can tell saved markers apart. */
@@ -1493,8 +1494,47 @@ button.primary {
     font-weight: 700;
 }
 
+.danger-text {
+    color: var(--danger, #c0524a);
+    font-weight: 700;
+}
+
 /* Non-success status text (e.g. "a job is already running") — amber so it doesn't read as success in
    the green .success banner. */
+.capture-health {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.capture-meter {
+    height: 12px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+}
+
+.capture-meter-fill {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    transition: width 120ms linear;
+    background: var(--accent-2);
+}
+
+.capture-meter-fill.healthy {
+    background: #61d394;
+}
+
+.capture-meter-fill.quiet {
+    background: #8bd3ff;
+}
+
+.capture-meter-fill.clipped {
+    background: #ff6b57;
+}
+
 .warn {
     color: #e6b566;
     font-weight: 700;

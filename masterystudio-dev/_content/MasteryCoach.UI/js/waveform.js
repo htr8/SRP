@@ -387,6 +387,23 @@ function paint(inst) {
         ctx.globalAlpha = 1;
     }
 
+    // MIDI hit overlay: note-on events are thin full-height strokes, shifted by the host's manual
+    // alignment offset. Drawn above the waveform body but below the loop/playhead/edit handles.
+    if (m.midiHits && m.midiHits.length) {
+        const hitColor = cssVar(canvas, '--midi-hit', '#8bd3ff');
+        const offset = (m.midiHitOffsetMs || 0) / 1000;
+        ctx.fillStyle = hitColor;
+        for (const hit of m.midiHits) {
+            const t = (hit.time || 0) + offset;
+            if (t < v.start || t > v.end) continue;
+            const velocity = Math.max(1, Math.min(127, hit.velocity || 80));
+            ctx.globalAlpha = 0.25 + (velocity / 127) * 0.55;
+            const x = Math.round(timeToX(t));
+            ctx.fillRect(x - 1, 0, 2, h);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     // Foreground loop handles: keep them visible across the full waveform height, even on loud/dense
     // passages whose filled peaks would otherwise cover the underlay.
     if (m.loop && m.loop.end != null) {
