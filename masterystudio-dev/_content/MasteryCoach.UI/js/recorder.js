@@ -371,9 +371,12 @@ export function stopInputMeter() {
     if (meter.raf) { cancelAnimationFrame(meter.raf); meter.raf = 0; }
     if (meter.ctxSrc) { try { meter.ctxSrc.disconnect(); } catch { /* ignore */ } meter.ctxSrc = null; }
     meter.analyser = null;
-    // Drop our reference to the shared stream but DON'T stop its tracks — the recorder/calibrator reuse
-    // it (no re-prompt). The shared stream is released only on device change / releaseSharedMic().
+    // Drop our reference and release the shared stream when the monitor is the only owner. Keeping it
+    // open after the visible monitor stops makes the browser report that the mic is still in use.
     meter.stream = null;
+    if (!state.recording) {
+        releaseSharedMic();
+    }
     if (meter.canvas) {
         try { meter.canvas.getContext('2d').clearRect(0, 0, meter.canvas.width, meter.canvas.height); } catch { /* gone */ }
         meter.canvas = null;
