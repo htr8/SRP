@@ -9,6 +9,13 @@
 
 import { getSharedContext } from './audioContext.js';
 import { getGrid } from './metronome.js';
+import {
+    buildHealthFromAccumulators,
+    monoStats,
+    resetWindowedAccumulators,
+    scaledMeterLevel,
+    updateChannelAccumulators,
+} from './inputMonitorCore.js';
 
 const state = {
     stream: null,
@@ -22,6 +29,8 @@ const state = {
     workletReady: null,
     gridAtStart: null, // metronome grid captured when recording begins (see stop())
     lastTake: null,    // { samples: Float32Array, sampleRate, durationSeconds, gridOffsetSeconds, gridSecondsPerBeat }
+    health: null,
+    healthChannels: [],
 };
 
 // navigator.mediaDevices is UNDEFINED in some WebView contexts (notably iOS WKWebView without a
@@ -134,6 +143,7 @@ export async function start(deviceId) {
     state.chunks = [];
     state.startCtxTime = null;
     state.sampleRate = ctx.sampleRate;
+    resetHealth();
 
     state.sourceNode = ctx.createMediaStreamSource(state.stream);
     state.captureNode = new AudioWorkletNode(ctx, 'capture-processor', {
@@ -146,6 +156,7 @@ export async function start(deviceId) {
             state.startCtxTime = e.data.time;
         } else if (e.data.type === 'chunk' && state.recording) {
             state.chunks.push(e.data.samples);
+            updateHealth(e.data.channelStats);
         }
     };
 
@@ -270,9 +281,28 @@ export function isRecording() {
 // (requestAnimationFrame onto a canvas), so there is zero per-frame interop.
 // ---------------------------------------------------------------------------------------------
 
-const meter = { stream: null, analyser: null, ctxSrc: null, raf: 0, canvas: null, peakHold: 0, gen: 0 };
+const meter = {
+    stream: null,
+    analyser: null,
+    ctxSrc: null,
+    raf: 0,
+    canvas: null,
+    peakHold: 0,
+    gen: 0,
+    health: null,
+    healthChannels: [],
+};
 
 export async function startInputMeter(canvas, deviceId) {
+    await startInputMonitor(canvas, deviceId);
+}
+
+export async function startMonitoring(deviceId) {
+    if (state.recording) return;
+    await startInputMonitor(null, deviceId);
+}
+
+async function startInputMonitor(canvas, deviceId) {
     stopInputMeter(); // re-arm cleanly on device change
 
     // Generation token: getUserMedia can take seconds (permission prompt), during which another
@@ -297,25 +327,24 @@ export async function startInputMeter(canvas, deviceId) {
     meter.ctxSrc.connect(meter.analyser); // analyser has no output — nothing reaches the speakers
     meter.canvas = canvas;
     meter.peakHold = 0;
+    resetMeterHealth();
 
     const data = new Float32Array(meter.analyser.fftSize);
     const draw = () => {
-        if (!meter.analyser || !meter.canvas) return;
+        if (!meter.analyser) return;
         meter.analyser.getFloatTimeDomainData(data);
-        let sumSq = 0, peak = 0;
-        for (let i = 0; i < data.length; i++) {
-            const s = data[i];
-            sumSq += s * s;
-            if (Math.abs(s) > peak) peak = Math.abs(s);
-        }
-        const rms = Math.sqrt(sumSq / data.length);
-        meter.peakHold = Math.max(peak, meter.peakHold * 0.95); // decaying peak-hold marker
+        const stats = monoStats(data);
+        if (!stats) return;
+        updateMeterHealth([stats]);
+        const rms = Math.sqrt(stats.sumSquares / stats.samples);
+        meter.peakHold = Math.max(stats.peak, meter.peakHold * 0.95); // decaying peak-hold marker
 
+        if (meter.canvas) {
         const g = meter.canvas.getContext('2d');
         const w = meter.canvas.width, h = meter.canvas.height;
         g.clearRect(0, 0, w, h);
         // RMS bar with soft-knee scaling so quiet signals still move; green → amber → red zones.
-        const level = Math.min(1, Math.pow(rms * 2.2, 0.6));
+        const level = scaledMeterLevel(rms);
         const zones = [[0.6, '#7fc97f'], [0.85, '#f0c35a'], [1.0, '#c0524a']];
         let from = 0;
         for (const [to, color] of zones) {
@@ -330,6 +359,7 @@ export async function startInputMeter(canvas, deviceId) {
         const peakX = Math.min(1, Math.pow(meter.peakHold * 2.2, 0.6)) * w;
         g.fillStyle = '#f2f4f5';
         g.fillRect(Math.max(0, peakX - 1), 0, 2, h);
+        }
 
         meter.raf = requestAnimationFrame(draw);
     };
@@ -348,6 +378,42 @@ export function stopInputMeter() {
         try { meter.canvas.getContext('2d').clearRect(0, 0, meter.canvas.width, meter.canvas.height); } catch { /* gone */ }
         meter.canvas = null;
     }
+}
+
+export function stopMonitoring() {
+    stopInputMeter();
+}
+
+export function inputHealth() {
+    if (state.recording) {
+        return state.health;
+    }
+
+    const health = meter.health;
+    if (meter.analyser) {
+        resetWindowedAccumulators(meter.healthChannels);
+    }
+    return health;
+}
+
+function resetHealth() {
+    state.health = null;
+    state.healthChannels = [];
+}
+
+function updateHealth(channelStats) {
+    updateChannelAccumulators(state.healthChannels, channelStats);
+    state.health = buildHealthFromAccumulators(state.healthChannels);
+}
+
+function resetMeterHealth() {
+    meter.health = null;
+    meter.healthChannels = [];
+}
+
+function updateMeterHealth(channelStats) {
+    updateChannelAccumulators(meter.healthChannels, channelStats);
+    meter.health = buildHealthFromAccumulators(meter.healthChannels);
 }
 
 // 16-bit PCM mono WAV encoder (exported for the Node test harness).

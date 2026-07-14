@@ -31,6 +31,8 @@ const state = {
     countIn: { beats: 0, entryBeats: 0, secondsPerBeat: 0.5 }, // beats = clicks heard; entryBeats = where music enters (fractional)
     countInNodes: [],  // scheduled click oscillators (cancelled on pause/stop/seek)
     countInTimer: null, // element-fallback deferred start
+    skipMarks: [],
+    lastSkipScan: 0,
 
     // Stretch engine.
     stretch: {
@@ -87,6 +89,13 @@ function notifyEnded() {
     if (state.dotnet) {
         try { state.dotnet.invokeMethodAsync('OnPlaybackEnded').catch(() => {}); }
         catch (e) { /* dotnet ref already torn down (sync throw) — nothing to notify */ }
+    }
+}
+
+function notifySkipped(position) {
+    if (state.dotnet) {
+        try { state.dotnet.invokeMethodAsync('OnPlaybackSkipped', position).catch(() => {}); }
+        catch (e) { /* dotnet ref already torn down (sync throw) - nothing to notify */ }
     }
 }
 
@@ -302,7 +311,11 @@ async function ensureStretchNode() {
             // Position mirror + end-of-media detection (shared watchdog, carrying the loop-wrap
             // and deferred-start guards — see engineCommon.makeEndWatchdog). 100 ms matches the
             // old timeupdate feel.
-            node.setUpdateInterval(0.1, engineCommon.makeEndWatchdog(node, state, notifyEnded));
+            node.setUpdateInterval(0.1, engineCommon.makeEndWatchdog(node, state, notifyEnded, (jumpTo) => {
+                state.range = null;
+                seek(jumpTo);
+                notifySkipped(jumpTo);
+            }));
             state.stretch.node = node;
             return node;
         })();
@@ -459,8 +472,15 @@ function ensureAudio() {
     const audio = new Audio();
     audio.preload = 'auto';
     audio.addEventListener('timeupdate', () => {
+        if (state.engine !== 'element') return;
+        if (engineCommon.scanSkipMarks(state, audio.currentTime, (jumpTo) => {
+            state.range = null;
+            audio.currentTime = jumpTo;
+            notifySkipped(jumpTo);
+        })) return;
+
         const r = state.range;
-        if (!r || state.engine !== 'element') return;
+        if (!r) return;
         if (r.end != null && audio.currentTime >= r.end) {
             if (r.loop) {
                 audio.currentTime = r.start;
@@ -663,6 +683,7 @@ export async function play() {
         // Replay after ending: a stopped take parks near the media end (or at a range end beyond
         // the media), which would otherwise re-trigger the end watchdog immediately.
         if (s.duration > 0 && input >= s.duration - 0.1) input = r ? r.start : 0;
+        engineCommon.seedSkipScan(state, input);
 
         if (state.countIn.beats > 0) {
             // Phase alignment: when C# supplied the tracked-grid gap to the song's first beat
@@ -715,6 +736,7 @@ export async function play() {
             const align = countInCore.countInMusicAlignment(
                 alignCountIn, state.tempoRatio, endBound - input - 0.3);
             input += align.skipSeconds;
+            engineCommon.seedSkipScan(state, input);
             // LATENCY COMPENSATION (music-comes-in-late-after-the-count bug, user report 2026-07-13):
             // the clicks are plain oscillators (sound at their scheduled time); the song plays through
             // the stretch worklet, whose audible output emerges ~node.latency() AFTER its scheduled
@@ -755,6 +777,7 @@ export async function play() {
     if (r && (audio.currentTime < r.start || (r.end != null && audio.currentTime >= r.end))) {
         audio.currentTime = r.start;
     }
+    engineCommon.seedSkipScan(state, audio.currentTime);
 
     if (state.countIn.beats > 0) {
         // Fallback path: clicks on the context, deferred element start. The element starts from
@@ -776,6 +799,7 @@ export async function play() {
         state.countInTimer = setTimeout(() => {
             state.countInTimer = null;
             if (hasGrid) audio.currentTime = startFrom;
+            engineCommon.seedSkipScan(state, audio.currentTime);
             // Warn (not swallow): a play() rejection here (autoplay policy, aborted load) would
             // otherwise be fully silent — console.warn reaches the diagnostics funnel.
             audio.play().catch((err) => console.warn(`[audio] deferred element play failed: ${err?.message ?? err}`));
@@ -818,10 +842,18 @@ export function seek(seconds) {
     cancelPendingCountIn();
     if (state.engine === 'stretch' && state.stretch.node) {
         state.stretch.position = seconds;
+        engineCommon.seedSkipScan(state, seconds);
         applyStretchSchedule({ input: seconds });
         return;
     }
-    if (state.audio) state.audio.currentTime = seconds;
+    if (state.audio) {
+        state.audio.currentTime = seconds;
+        engineCommon.seedSkipScan(state, seconds);
+    }
+}
+
+export function setSkipMarks(marks) {
+    engineCommon.setSkipMarks(state, marks, getPosition());
 }
 
 // Count-in settings — semantics live in countInCore.clampCountIn (the one statement of the

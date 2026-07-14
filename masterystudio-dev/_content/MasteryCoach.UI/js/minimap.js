@@ -200,6 +200,21 @@ function paint(inst) {
         }
     }
 
+    // Saved point marks: thinner than the main wave, but still full-height so they read in the overview.
+    if (Array.isArray(m.marks) && m.marks.length) {
+        const markColor = cssVar(canvas, '--mark-edge', '#d6b2ff');
+        const skipColor = cssVar(canvas, '--skip-mark-edge', '#ff8a5b');
+        for (const mark of m.marks) {
+            const t = Number(mark.position);
+            if (!Number.isFinite(t) || t <= 0 || t >= dur) continue;
+            const x = Math.round(timeToX(t));
+            ctx.fillStyle = mark.isSkip ? skipColor : markColor;
+            ctx.globalAlpha = mark.isSkip ? 0.78 : 0.52;
+            ctx.fillRect(x - 1, 0, 2, h);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     // Loop overview: subtle gold context in the navigation strip. The main waveform carries the strong
     // loop handles; here the range stays quieter so it helps orientation without becoming the focus.
     if (m.loop && m.loop.end != null) {

@@ -140,13 +140,14 @@ export function applyStretchSchedule(node, range, durationSeconds, tempoRatio, p
 ///    still-scheduled clicks. Hold until the music enters.
 ///  - While a loop is active the node wraps gaplessly on its own — the watchdog must NOT fire near
 ///    the loop/track end or it would kill loops whose end sits close to the media end (review).
-export function makeEndWatchdog(node, playerState, onEnded) {
+export function makeEndWatchdog(node, playerState, onEnded, onSkip) {
     return (inputTime) => {
         const stretch = playerState.stretch;
         const ctx = playerState.ctx;
         if (ctx && ctx.currentTime < (stretch.holdEndCheckUntil || 0)) return;
         stretch.position = inputTime;
         if (!stretch.playing) return;
+        if (scanSkipMarks(playerState, inputTime, onSkip)) return;
         const r = playerState.range;
         if (r && r.loop) return; // native loop handles the wrap
         const stopAt = r && r.end != null ? r.end : null;
@@ -157,6 +158,43 @@ export function makeEndWatchdog(node, playerState, onEnded) {
             onEnded();
         }
     };
+}
+
+export function setSkipMarks(playerState, marks, currentPosition) {
+    playerState.skipMarks = Array.isArray(marks)
+        ? marks
+            .map(mark => ({ skipAt: Number(mark.skipAt), jumpTo: Number(mark.jumpTo) }))
+            .filter(mark => Number.isFinite(mark.skipAt) && Number.isFinite(mark.jumpTo) && mark.jumpTo > mark.skipAt)
+            .sort((a, b) => a.skipAt - b.skipAt || a.jumpTo - b.jumpTo)
+        : [];
+    seedSkipScan(playerState, currentPosition);
+}
+
+export function seedSkipScan(playerState, currentPosition) {
+    playerState.lastSkipScan = Number.isFinite(currentPosition) ? currentPosition : 0;
+}
+
+export function scanSkipMarks(playerState, position, onSkip) {
+    if (!onSkip || !playerState.skipMarks || playerState.skipMarks.length === 0 || !Number.isFinite(position)) {
+        playerState.lastSkipScan = position;
+        return false;
+    }
+
+    const previous = Number.isFinite(playerState.lastSkipScan) ? playerState.lastSkipScan : position;
+    if (position < previous) {
+        playerState.lastSkipScan = position;
+        return false;
+    }
+
+    const jump = playerState.skipMarks.find(mark => mark.skipAt > previous && mark.skipAt <= position);
+    if (!jump) {
+        playerState.lastSkipScan = position;
+        return false;
+    }
+
+    playerState.lastSkipScan = jump.jumpTo;
+    onSkip(jump.jumpTo);
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------

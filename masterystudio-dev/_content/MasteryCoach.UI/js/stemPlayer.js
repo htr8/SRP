@@ -38,6 +38,8 @@ const state = {
     countInTap: null, // the count-in's hard-left sink while dual-mix is on (engineCommon.ensureCountInTap)
     countIn: { beats: 0, entryBeats: 0, secondsPerBeat: 0.5 }, // beats = clicks heard; entryBeats = where the mix enters (fractional)
     countInNodes: [], // scheduled click oscillators (cancelled on stop)
+    skipMarks: [],
+    lastSkipScan: 0,
 
     // Stretch engine (rebuilt per load — channel count depends on stem count).
     stretch: {
@@ -58,6 +60,7 @@ const state = {
         position: 0,   // last seeked/derived song position (see classicPosition)
         startedAt: null,   // ctx time the current sources started — anchors the live playhead
         startedFrom: 0,    // song position the current sources started from
+        skipTimer: null,
     },
 };
 
@@ -89,6 +92,13 @@ function notifyEnded() {
     if (state.dotnet) {
         try { state.dotnet.invokeMethodAsync('OnStemsEnded').catch(() => {}); }
         catch (e) { /* dotnet ref already torn down (sync throw) — nothing to notify */ }
+    }
+}
+
+function notifySkipped(position) {
+    if (state.dotnet) {
+        try { state.dotnet.invokeMethodAsync('OnStemsSkipped', position).catch(() => {}); }
+        catch (e) { /* dotnet ref already torn down (sync throw) - nothing to notify */ }
     }
 }
 
@@ -399,7 +409,11 @@ async function buildStretchGraph(stemCount) {
     // deferred-start guards — see engineCommon.makeEndWatchdog). Wrapped so the SAME 0.1 s tick also
     // feeds the wobble-health monitor (task #77): it samples ctx-clock vs worklet-position drift, rate
     // changes, and context interruptions into a rolling ring that auto-dumps to /diagnostics on anomaly.
-    const watchdog = engineCommon.makeEndWatchdog(node, state, notifyEnded);
+    const watchdog = engineCommon.makeEndWatchdog(node, state, notifyEnded, (jumpTo) => {
+        state.range = null;
+        seek(jumpTo);
+        notifySkipped(jumpTo);
+    });
     node.setUpdateInterval(0.1, (inputTime) => {
         watchdog(inputTime);
         health.tick(state.ctx, inputTime, state.tempoRatio);
@@ -455,6 +469,7 @@ function stopClassicSources() {
     }
     state.classic.playing = false;
     state.classic.startedAt = null;
+    stopClassicSkipTimer();
 }
 
 // The classic engine's live playhead: buffer sources report nothing, so the position is derived
@@ -475,6 +490,29 @@ function classicPosition() {
         pos = c.duration;
     }
     return pos;
+}
+
+function stopClassicSkipTimer() {
+    if (state.classic.skipTimer != null) {
+        clearInterval(state.classic.skipTimer);
+        state.classic.skipTimer = null;
+    }
+}
+
+function startClassicSkipTimer() {
+    stopClassicSkipTimer();
+    state.classic.skipTimer = setInterval(() => {
+        if (!state.classic.playing) {
+            stopClassicSkipTimer();
+            return;
+        }
+
+        engineCommon.scanSkipMarks(state, classicPosition(), (jumpTo) => {
+            state.range = null;
+            seek(jumpTo);
+            notifySkipped(jumpTo);
+        });
+    }, 100);
 }
 
 // Create + start one buffer source per stem, all at the same ctx time `when`, playing from `from`.
@@ -527,6 +565,8 @@ function startClassicSources(from, when) {
     state.classic.startedAt = when;
     state.classic.startedFrom = begin;
     state.classic.position = begin;
+    engineCommon.seedSkipScan(state, begin);
+    startClassicSkipTimer();
 
     if (!loop) {
         // Signal ended from the LONGEST stem — stems[0] may be shorter than the others, which
@@ -834,6 +874,7 @@ function startStretchAt(output, startInput = null) {
     applyGains();
     const input = startInput != null ? startInput : stretchInput();
     logStretchStartDiag('startStretchAt', input, output);
+    engineCommon.seedSkipScan(state, input);
     applyStretchSchedule({ input, active: true, output });
     // Until the deferred start actually begins, the node reports its STALE previous position —
     // seed the mirror (so the playhead/position polls show where playback will enter) and hold the
@@ -957,6 +998,7 @@ export async function play() {
             }
             const output = ctx.currentTime + Math.max(0.02, latency);
             logStretchStartDiag('play(no-count-in)', input, output);
+            engineCommon.seedSkipScan(state, input);
             applyStretchSchedule({ input, active: true, output });
             state.stretch.holdEndCheckUntil = output + 0.2;
             state.stretch.playing = true;
@@ -1127,6 +1169,7 @@ export function seek(seconds) {
 
     if (state.engine === 'stretch' && state.stretch.node) {
         state.stretch.position = target;
+        engineCommon.seedSkipScan(state, target);
         applyStretchSchedule({ input: target });
         return;
     }
@@ -1135,10 +1178,15 @@ export function seek(seconds) {
     const wasPlaying = state.classic.playing;
     if (wasPlaying) stopClassicSources(); // freezes position first — overwrite with the target below
     state.classic.position = target;
+    engineCommon.seedSkipScan(state, target);
     if (wasPlaying) {
         applyGains();
         startClassicSources(target, state.ctx.currentTime + 0.02);
     }
+}
+
+export function setSkipMarks(marks) {
+    engineCommon.setSkipMarks(state, marks, getPosition());
 }
 
 // Independent tempo and pitch. Stretch engine: both in one pass on the shared node (pitch

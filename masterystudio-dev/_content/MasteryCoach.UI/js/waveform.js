@@ -404,6 +404,25 @@ function paint(inst) {
         ctx.globalAlpha = 1;
     }
 
+    // Saved marks: full-height point ticks. Skip marks get the warmer colour because they affect
+    // transport flow; regular marks stay cool and quieter as recall anchors.
+    if (Array.isArray(m.marks) && m.marks.length) {
+        const markColor = cssVar(canvas, '--mark-edge', '#d6b2ff');
+        const skipColor = cssVar(canvas, '--skip-mark-edge', '#ff8a5b');
+        for (const mark of m.marks) {
+            const t = Number(mark.position);
+            if (!Number.isFinite(t) || t < v.start || t > v.end) continue;
+            const x = Math.round(timeToX(t));
+            const isSkip = !!mark.isSkip;
+            ctx.fillStyle = isSkip ? skipColor : markColor;
+            ctx.globalAlpha = isSkip ? 0.92 : 0.72;
+            ctx.fillRect(x - 1, 0, isSkip ? 3 : 2, h);
+            ctx.fillRect(x - 4, 0, 8, 3);
+            ctx.fillRect(x - 4, h - 3, 8, 3);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     // Foreground loop handles: keep them visible across the full waveform height, even on loud/dense
     // passages whose filled peaks would otherwise cover the underlay.
     if (m.loop && m.loop.end != null) {

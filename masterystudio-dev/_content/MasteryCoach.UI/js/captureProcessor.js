@@ -20,8 +20,22 @@ class CaptureProcessor extends AudioWorkletProcessor {
         // Mono: channel 0 (mic constraints request a single channel). Copy — the input
         // buffer is reused by the audio thread.
         const chunk = new Float32Array(input[0].length);
-        chunk.set(input[0]);
-        this.port.postMessage({ type: 'chunk', samples: chunk }, [chunk.buffer]);
+        let sumSquares = 0;
+        let peak = 0;
+        let clipped = 0;
+        for (let i = 0; i < input[0].length; i++) {
+            const value = input[0][i];
+            const abs = Math.abs(value);
+            chunk[i] = value;
+            sumSquares += value * value;
+            if (abs > peak) peak = abs;
+            if (abs >= 0.999) clipped++;
+        }
+        this.port.postMessage({
+            type: 'chunk',
+            samples: chunk,
+            channelStats: [{ channel: 1, peak, sumSquares, samples: chunk.length, clipped }],
+        }, [chunk.buffer]);
         return true;
     }
 }

@@ -24,7 +24,11 @@ class StereoCaptureProcessor extends AudioWorkletProcessor {
             });
         }
 
-        const channelStats = [measure(input[0]), measure(input[1] || input[0])];
+        // Measure only the channels that are actually present. A mono source has input.length === 1;
+        // measuring input[0] twice would report a phantom second channel in the health readout.
+        const channelStats = input.length > 1
+            ? [measure(input[0]), measure(input[1])]
+            : [measure(input[0])];
         if (!this._captureAudio) {
             this.port.postMessage({
                 type: 'chunk',

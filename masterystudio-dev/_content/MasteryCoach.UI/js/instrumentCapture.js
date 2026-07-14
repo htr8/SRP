@@ -1,5 +1,10 @@
 import { getSharedContext } from './audioContext.js';
 import { encodeWavStereo } from './recorder.js';
+import {
+    buildHealthFromAccumulators,
+    resetWindowedAccumulators,
+    updateChannelAccumulators,
+} from './inputMonitorCore.js';
 
 const state = {
     stream: null,
@@ -12,12 +17,23 @@ const state = {
     chunksRight: [],
     recording: false,
     monitoring: false,
+    // Synchronous in-flight latch. `recording`/`monitoring` only flip true AFTER the getUserMedia +
+    // addModule awaits, so two rapid start() calls (double-click / Enter during that window) would
+    // both pass the recording/monitoring guards and both open a graph — orphaning the first graph's
+    // MediaStream tracks (a leaked live mic/USB stream). This latch is set before any await so the
+    // second entry bails immediately.
+    starting: false,
     startCtxTime: null,
     endCtxTime: null,
     sampleRate: 44100,
     inputChannels: 0,
     midiEvents: [],
+    // Live offset, re-measured per MIDI event so each event's timeline position tracks any clock
+    // drift. `startClockOffsetSeconds` is a STABLE reference captured once at record start — persisted
+    // as the representative offset, since the live one would otherwise report only the last event's
+    // sample (meaningless as "the" offset).
     clockOffsetSeconds: 0,
+    startClockOffsetSeconds: 0,
     health: null,
     healthChannels: [],
     lastAudio: null,
@@ -42,10 +58,39 @@ function mediaGetUserMedia(constraints) {
     return navigator.mediaDevices.getUserMedia(constraints);
 }
 
-function audioClockOffset(ctx) {
+export async function listInputs() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        return [];
+    }
+
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    if (devices.some(d => d.kind === 'audioinput' && !d.label)) {
+        try {
+            const unlock = await mediaGetUserMedia({ audio: true });
+            for (const track of unlock.getTracks()) track.stop();
+            devices = await navigator.mediaDevices.enumerateDevices();
+        } catch {
+            // Permission denied or unavailable: return the partial list.
+        }
+    }
+
+    return devices
+        .filter(d => d.kind === 'audioinput')
+        .map((d, i) => ({ id: d.deviceId, label: d.label || `Audio input ${i + 1}` }));
+}
+
+// Exported for unit testing (tests/js/instrument-capture-timing.test.mjs). Pure given its ctx arg.
+export function audioClockOffset(ctx) {
     if (typeof ctx.getOutputTimestamp === 'function') {
         const stamp = ctx.getOutputTimestamp();
-        if (stamp && Number.isFinite(stamp.contextTime) && Number.isFinite(stamp.performanceTime)) {
+        // Browsers return {contextTime:0, performanceTime:0} until audio actually flows to the
+        // output device. That pair passes Number.isFinite but is NOT a real calibration: mapping an
+        // event.timeStamp (a performance.now() value in the 1e5–1e7 ms range) through a zero offset
+        // yields a hit time of thousands of seconds, which the overlay then silently drops — so the
+        // first ~100 ms of MIDI hits vanish. Require a positive contextTime before trusting the pair;
+        // otherwise fall through to the always-valid currentTime/performance.now() offset.
+        if (stamp && Number.isFinite(stamp.contextTime) && stamp.contextTime > 0
+            && Number.isFinite(stamp.performanceTime) && stamp.performanceTime > 0) {
             return stamp.contextTime - stamp.performanceTime / 1000;
         }
     }
@@ -56,8 +101,23 @@ function eventAudioTime(performanceTimeMs) {
     return performanceTimeMs / 1000 + state.clockOffsetSeconds;
 }
 
-function ampToDb(value) {
-    return value > 0 ? 20 * Math.log10(value) : -120;
+// Jitter = the SPREAD of per-event delivery delay (max − min), not the max delay. A constant delivery
+// latency (e.g. a steady 8 ms) has ZERO jitter and must not fail the Phase-1 acceptance bar; only
+// variation in when callbacks land relative to system-receive time matters, because the timeline
+// position itself is anchored to event.timeStamp. With ≤1 event there's no spread → 0. Exported for
+// unit testing (tests/js/instrument-capture-timing.test.mjs).
+export function midiDeliveryJitterSpreadMs(events) {
+    if (!events || events.length < 2) {
+        return 0;
+    }
+    let minDelay = Infinity;
+    let maxDelay = -Infinity;
+    for (const event of events) {
+        const delay = event.deliveryDelayMs || 0;
+        if (delay < minDelay) minDelay = delay;
+        if (delay > maxDelay) maxDelay = delay;
+    }
+    return maxDelay - minDelay;
 }
 
 function resetHealth() {
@@ -65,53 +125,19 @@ function resetHealth() {
     state.healthChannels = [];
 }
 
+// Per channel we keep two kinds of accumulator:
+//  - session-retained: `peak` (peak-HOLD, so the "loudest part" check reports the loudest instant
+//    over its whole window) and `clipped` (did it EVER clip during the check);
+//  - windowed: `sumSquares`/`samples`, reset every time inputHealth() snapshots, so RMS reflects the
+//    RECENT level rather than a lifetime average that dilutes transients (and can't grow unbounded).
 function updateHealth(channelStats) {
-    if (!channelStats || !channelStats.length) return;
-    for (let i = 0; i < channelStats.length; i++) {
-        const stat = channelStats[i];
-        if (!stat) continue;
-        const current = state.healthChannels[i] || { channel: i + 1, peak: 0, sumSquares: 0, samples: 0, clipped: 0 };
-        current.peak = Math.max(current.peak, stat.peak || 0);
-        current.sumSquares += stat.sumSquares || 0;
-        current.samples += stat.samples || 0;
-        current.clipped += stat.clipped || 0;
-        state.healthChannels[i] = current;
-    }
-    state.health = buildHealth();
+    updateChannelAccumulators(state.healthChannels, channelStats);
+    state.health = buildHealthFromAccumulators(state.healthChannels);
 }
 
-function buildHealth() {
-    const channels = state.healthChannels
-        .filter(ch => ch && ch.samples > 0)
-        .map(ch => {
-            const rms = Math.sqrt(ch.sumSquares / ch.samples);
-            return {
-                channel: ch.channel,
-                peakDb: ampToDb(ch.peak),
-                rmsDb: ampToDb(rms),
-                clippedSampleCount: ch.clipped,
-            };
-        });
-    if (channels.length === 0) return null;
-
-    const peakDb = Math.max(...channels.map(ch => ch.peakDb));
-    const totalSamples = state.healthChannels.reduce((sum, ch) => sum + (ch ? ch.samples : 0), 0);
-    const totalSquares = state.healthChannels.reduce((sum, ch) => sum + (ch ? ch.sumSquares : 0), 0);
-    const clippedSampleCount = state.healthChannels.reduce((sum, ch) => sum + (ch ? ch.clipped : 0), 0);
-    const rmsDb = ampToDb(Math.sqrt(totalSquares / Math.max(1, totalSamples)));
-    const nearSilent = rmsDb < -55 || peakDb < -45;
-    let recommendedAction = 'Level looks healthy.';
-    if (clippedSampleCount > 0 || peakDb >= -0.2) {
-        recommendedAction = 'Input is clipping. Lower the TD-27, interface, pedal, mic preamp, or phone input level.';
-    } else if (nearSilent) {
-        recommendedAction = 'Input is very quiet. Raise the source or input level before recording.';
-    } else if (peakDb < -18) {
-        recommendedAction = 'Input is usable but quiet. Consider raising the source or input level.';
-    } else if (peakDb > -3) {
-        recommendedAction = 'Input is strong and close to clipping. Leave headroom or lower the source slightly.';
-    }
-
-    return { peakDb, rmsDb, clippedSampleCount, nearSilent, recommendedAction, channels };
+// Reset the windowed RMS accumulators after a snapshot, keeping the retained peak-hold + clip count.
+function resetHealthWindow() {
+    resetWindowedAccumulators(state.healthChannels);
 }
 
 async function attachMidiInputs() {
@@ -127,11 +153,15 @@ async function attachMidiInputs() {
             if (!state.recording) return;
             state.clockOffsetSeconds = audioClockOffset(getSharedContext());
             const performanceTime = event.timeStamp;
-            const deliveryJitterMs = performance.now() - performanceTime;
+            // Per-event DELIVERY DELAY: how long after the system received the message this callback
+            // ran. This does NOT feed the event's timeline position (that comes from event.timeStamp
+            // via eventAudioTime) — it's raw material for the jitter metric computed in stop(). Jitter
+            // is the SPREAD of this delay across events, not any single value.
+            const deliveryDelayMs = performance.now() - performanceTime;
             state.midiEvents.push({
                 audioContextTime: eventAudioTime(performanceTime),
                 performanceTime,
-                deliveryJitterMs,
+                deliveryDelayMs,
                 data: Array.from(event.data || []),
             });
         };
@@ -196,51 +226,62 @@ function handleCaptureMessage(event) {
 }
 
 export async function start(audioDeviceId) {
-    if (state.recording) return;
+    if (state.recording || state.starting) return;
     if (state.monitoring) cancel();
-
-    const ctx = getSharedContext();
-    await ensureWorklet(ctx);
-
-    state.chunksLeft = [];
-    state.chunksRight = [];
-    state.midiEvents = [];
-    state.startCtxTime = null;
-    state.endCtxTime = null;
-    state.sampleRate = ctx.sampleRate;
-    state.inputChannels = 0;
-    state.clockOffsetSeconds = audioClockOffset(ctx);
-    resetHealth();
-    state.lastAudio = null;
-    state.lastMidiJson = '[]';
+    state.starting = true;
 
     try {
-        await attachMidiInputs();
-        await openAudioGraph(ctx, audioDeviceId, true);
-        state.recording = true;
-    } catch (err) {
-        state.recording = false;
-        cleanupGraph();
-        throw err;
+        const ctx = getSharedContext();
+        await ensureWorklet(ctx);
+
+        state.chunksLeft = [];
+        state.chunksRight = [];
+        state.midiEvents = [];
+        state.startCtxTime = null;
+        state.endCtxTime = null;
+        state.sampleRate = ctx.sampleRate;
+        state.inputChannels = 0;
+        state.clockOffsetSeconds = audioClockOffset(ctx);
+        state.startClockOffsetSeconds = state.clockOffsetSeconds;
+        resetHealth();
+        state.lastAudio = null;
+        state.lastMidiJson = '[]';
+
+        try {
+            await attachMidiInputs();
+            await openAudioGraph(ctx, audioDeviceId, true);
+            state.recording = true;
+        } catch (err) {
+            state.recording = false;
+            cleanupGraph();
+            throw err;
+        }
+    } finally {
+        state.starting = false;
     }
 }
 
 export async function startMonitoring(audioDeviceId) {
-    if (state.recording || state.monitoring) return;
+    if (state.recording || state.monitoring || state.starting) return;
+    state.starting = true;
 
-    const ctx = getSharedContext();
-    await ensureWorklet(ctx);
-
-    state.inputChannels = 0;
-    state.startCtxTime = null;
-    resetHealth();
     try {
-        state.monitoring = true;
-        await openAudioGraph(ctx, audioDeviceId, false);
-    } catch (err) {
-        state.monitoring = false;
-        cleanupGraph();
-        throw err;
+        const ctx = getSharedContext();
+        await ensureWorklet(ctx);
+
+        state.inputChannels = 0;
+        state.startCtxTime = null;
+        resetHealth();
+        try {
+            state.monitoring = true;
+            await openAudioGraph(ctx, audioDeviceId, false);
+        } catch (err) {
+            state.monitoring = false;
+            cleanupGraph();
+            throw err;
+        }
+    } finally {
+        state.starting = false;
     }
 }
 
@@ -293,15 +334,15 @@ export function stop() {
     state.lastMidiJson = JSON.stringify(state.midiEvents, null, 2);
 
     const durationSeconds = left.length / state.sampleRate;
-    const maxJitter = state.midiEvents.reduce((max, event) => Math.max(max, Math.abs(event.deliveryJitterMs || 0)), 0);
+    const midiDeliveryJitterMaxMs = midiDeliveryJitterSpreadMs(state.midiEvents);
     return {
         durationSeconds,
         sampleRate: state.sampleRate,
         channels: Math.max(1, state.inputChannels || 2),
         audioContextStartTime: state.startCtxTime ?? 0,
         audioContextEndTime: state.endCtxTime ?? 0,
-        midiClockOffsetSeconds: state.clockOffsetSeconds,
-        midiDeliveryJitterMaxMs: maxJitter,
+        midiClockOffsetSeconds: state.startClockOffsetSeconds,
+        midiDeliveryJitterMaxMs,
         midiEvents: state.midiEvents,
         health: state.health,
     };
@@ -322,7 +363,15 @@ export function stopMonitoring() {
 }
 
 export function inputHealth() {
-    return state.health;
+    const health = state.health;
+    // Live metering wants a RECENT level, so window the RMS by resetting the accumulators after each
+    // snapshot. During RECORDING we deliberately DON'T reset: stop() returns state.health as the
+    // whole-take summary, which should aggregate the entire recording (peak-hold + total clip count +
+    // take-wide RMS), not just the last 200 ms window.
+    if (state.monitoring && !state.recording) {
+        resetHealthWindow();
+    }
+    return health;
 }
 
 export function audioWavBlob() {
@@ -355,4 +404,12 @@ export function downloadLastMidi(fileName) {
 
 export function isRecording() {
     return state.recording;
+}
+
+// True only when the WebView can actually open an audio input. The .NET IsSupported flag reports
+// that the JS bridge is WIRED UP (always true on a JS host), but iOS WKWebView can lack
+// navigator.mediaDevices entirely — so the page also gates its capture/level buttons on this real
+// runtime check to avoid enabling controls that throw the moment they're used.
+export function isCaptureSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }

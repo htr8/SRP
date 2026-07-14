@@ -19,6 +19,8 @@
     /* Saved loops: BLUE, distinct from the gold active loop, so users can tell saved markers apart. */
     --saved-loop-band: rgba(122, 180, 255, 0.14);
     --saved-loop-edge: #7fb4ff;
+    --mark-edge: #d6b2ff;
+    --skip-mark-edge: #ff8a5b;
     /* Section readiness hues (also used by .wf-section.* below) — shared so the minimap ribbon matches. */
     --wf-ready: #8ee3a2;
     --wf-probably: #7fb4ff;
@@ -503,7 +505,15 @@ body {
     flex-direction: row;
     align-items: center;
     gap: 6px;
+    min-height: calc(30px + (var(--studio-toolbar-y-space) * 2) + 2px);
     box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar,
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-scrollrow,
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
+    height: 30px;
+    max-height: 30px;
+    align-items: center;
 }
 .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
     flex: 0 0 auto;
@@ -986,11 +996,6 @@ body {
 .mic-row select option {
     color: var(--text);
     background: var(--panel-2);
-}
-.mic-meter {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 3px;
 }
 .mic-hint { font-size: 11px; }
 .mic-hint-dismiss {
@@ -1501,13 +1506,20 @@ button.primary {
 
 /* Non-success status text (e.g. "a job is already running") — amber so it doesn't read as success in
    the green .success banner. */
-.capture-health {
+.input-monitor-panel {
     display: grid;
     gap: 10px;
     margin-top: 10px;
 }
 
-.capture-meter {
+.input-monitor-compact {
+    display: grid;
+    grid-template-columns: minmax(90px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-monitor-meter {
     height: 12px;
     overflow: hidden;
     background: color-mix(in srgb, var(--bg) 70%, transparent);
@@ -1515,24 +1527,96 @@ button.primary {
     border-radius: 999px;
 }
 
-.capture-meter-fill {
+.input-monitor-meter-fill {
     display: block;
     height: 100%;
     min-width: 2px;
     transition: width 120ms linear;
-    background: var(--accent-2);
 }
 
-.capture-meter-fill.healthy {
+.input-monitor-meter-fill.healthy {
     background: #61d394;
 }
 
-.capture-meter-fill.quiet {
-    background: #8bd3ff;
+.input-monitor-meter-fill.warning {
+    background: #e6b566;
 }
 
-.capture-meter-fill.clipped {
+.input-monitor-meter-fill.clipping {
     background: #ff6b57;
+}
+
+.capture-health-details {
+    display: grid;
+    gap: 8px;
+}
+
+.capture-health-details > div {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+}
+
+.capture-health-details span:first-child {
+    color: var(--muted);
+}
+
+.capture-health-recommendation span:last-child {
+    overflow-wrap: anywhere;
+.input-monitor-meter-fill.nosignal,
+.input-monitor-meter-fill.unavailable {
+    background: #758390;
+}
+
+.input-monitor-badge {
+    min-width: 86px;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.8rem;
+}
+
+.input-monitor-badge.healthy {
+    color: #8ee3a2;
+    border-color: color-mix(in srgb, #61d394 50%, var(--line));
+}
+
+.input-monitor-badge.warning {
+    color: #f0c35a;
+    border-color: color-mix(in srgb, #e6b566 55%, var(--line));
+}
+
+.input-monitor-badge.clipping {
+    color: #ff8a76;
+    border-color: color-mix(in srgb, #ff6b57 55%, var(--line));
+}
+
+.input-monitor-badge.nosignal,
+.input-monitor-badge.unavailable,
+.input-monitor-device {
+    color: var(--muted);
+}
+
+.input-monitor-device {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+}
+
+.input-monitor-device-picker {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.input-monitor-channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
 }
 
 .warn {
@@ -3654,6 +3738,15 @@ kbd {
 .countin-gear.on { color: var(--accent); border-color: var(--accent); }
 .countin-gear:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+.countin-settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    max-height: 30px;
+    white-space: nowrap;
+}
+
 .countin-entry {
     display: inline-flex;
     align-items: center;
@@ -3665,6 +3758,9 @@ kbd {
 }
 .countin-entry select {
     height: 30px;                      /* match the row so revealing it doesn't grow the row height */
+    min-height: 0;
+    max-height: 30px;
+    min-width: 0;
     /* Border-box + stripped native appearance so the 30px is AUTHORITATIVE. Without these, iOS WebKit's
        native <select> chrome renders taller than 30px, and because the toolbar wrap uses align-items:
        stretch it dragged the whole toolbar band taller when the count-in settings were revealed (user
@@ -3726,10 +3822,90 @@ kbd {
 .saved-loops-name { font-weight: 600; }
 .saved-loops-time { font-size: 11px; color: var(--muted); }
 
+.marks-menu {
+    position: relative;
+    display: inline-flex;
+}
+.marks-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 260px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.marks-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+    align-items: center;
+    padding: 4px;
+    border-radius: 7px;
+}
+.marks-item:hover { background: var(--panel-2); }
+.marks-jump {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 6px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+}
+.marks-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.marks-time { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.marks-chip,
+.marks-delete {
+    height: 24px;
+    padding: 0 8px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.marks-chip.on { color: var(--text); border-color: var(--skip-mark-edge); background: rgba(255, 138, 91, 0.18); }
+.marks-delete:hover:not(:disabled) { color: #fff; border-color: var(--danger, #c0524a); background: var(--danger, #c0524a); }
+.mark-name-input {
+    flex: 0 0 auto;
+    width: 132px;
+    height: 30px;
+    padding: 0 10px;
+    color: var(--text);
+    background: #0d1012;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 /* The loop row's scroll container clips vertical overflow (overflow-x:auto implies overflow-y:auto),
    which would cut off the saved-loops dropdown. Where a menu is open, don't clip vertically — the
    dropdown overlays the empty space below the row. (Mobile already sets overflow-x:visible.) */
-.control-toolbar:has(.saved-loops-list) {
+.control-toolbar:has(.saved-loops-list),
+.control-toolbar:has(.marks-list) {
     overflow: visible;
 }
 /* On phones the loop row is a PINNED toolbar, so the OUTER wrap (not the inner .control-toolbar) is the
@@ -3741,9 +3917,15 @@ kbd {
 .studio-console .control-toolbar-wrap:has(.saved-loops-list),
 .studio-console .control-toolbar-scrollrow:has(.saved-loops-list),
 .studio-console .control-toolbar-pinned:has(.saved-loops-list),
+.studio-console .control-toolbar-wrap:has(.marks-list),
+.studio-console .control-toolbar-scrollrow:has(.marks-list),
+.studio-console .control-toolbar-pinned:has(.marks-list),
 .control-toolbar-wrap:has(.saved-loops-list),
 .control-toolbar-scrollrow:has(.saved-loops-list),
-.control-toolbar-pinned:has(.saved-loops-list) {
+.control-toolbar-pinned:has(.saved-loops-list),
+.control-toolbar-wrap:has(.marks-list),
+.control-toolbar-scrollrow:has(.marks-list),
+.control-toolbar-pinned:has(.marks-list) {
     overflow: visible;
 }
 
