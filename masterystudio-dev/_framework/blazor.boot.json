@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "MasteryCoach.Web",
   "resources": {
-    "hash": "sha256-GZPu2canmXEWqc+/JEdy4dX6YLj6fZwpIOJ3WjTSGGc=",
+    "hash": "sha256-2IQRW/mCE1abiQr7iwUcHdERfOFl0HBYw0cto5ebfK8=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-K8zN/Q9D42faecc+ljG0rKemGDHETA7/IaBoMCm1inU="
     },
@@ -63,16 +63,16 @@
       "System.Threading.Thread.wasm": "sha256-bjukW7mnkNZM/P3e/Nc/By5ih/kU7graR5mfVDXOzOQ=",
       "System.Threading.wasm": "sha256-1lsJXUTLkNnJnwxDFZQLlIKP6zWE/9OdeSxjONcO4pg=",
       "System.wasm": "sha256-5QZAjy4n7513fYxCXSXTsAkUmRsLiZ8m621Ot4k7FB0=",
-      "MasteryCoach.Application.wasm": "sha256-K9/dZtXbG2aJoAscz9exqV9OBFFzRl76SqURja1Q75I=",
-      "MasteryCoach.Audio.Abstractions.wasm": "sha256-syqQzysRUYSkgmGcgK40hNLULlIUxrqPEuV3Q1q9L3I=",
-      "MasteryCoach.Audio.Analysis.wasm": "sha256-v2sJ+YdlFXsRX15aLLI2UJ/aoRhgx1ubdRzZjFSOseE=",
-      "MasteryCoach.Coaching.Abstractions.wasm": "sha256-H2eziI+dsuxy24ZPQozxWu17F/bb/RiKuc24j0ue9uE=",
-      "MasteryCoach.Content.Drumming.wasm": "sha256-cc0xse7CtyIVWyEWWddOjg4YNJVmbZCj8Qwby/AjM+E=",
-      "MasteryCoach.Content.Guitar.wasm": "sha256-Pn0XiPnFd+9g8I6j3RfD51Ja2ttHELAmgMKZhfAIKH4=",
-      "MasteryCoach.Core.wasm": "sha256-0I/ePLp/dKddw48vzMrRdEfAMp07E+jwzzSHIiif8sk=",
-      "MasteryCoach.Infrastructure.Abstractions.wasm": "sha256-f1Sbo3YK3ihuPRSaerZcv8UKiez4N2EyQdOTrjkeopc=",
-      "MasteryCoach.UI.wasm": "sha256-PoUJuwhk5ZzddZDGGwwtpf6Am4PrLGb9aUdRgqGzk6s=",
-      "MasteryCoach.Web.wasm": "sha256-/Pi7VFEn9KQ5qaWdoLtqiJgqey/wMj5fvCtU3LjvGfw="
+      "MasteryCoach.Application.wasm": "sha256-1Eh8WzHXz/qfcwRVZ9YwBK9xKitA77FVi1w8or4i6aU=",
+      "MasteryCoach.Audio.Abstractions.wasm": "sha256-B1sXQhCF1cuSgwjarhybUK9ZkEyHmVeXNrm6/PZkZvg=",
+      "MasteryCoach.Audio.Analysis.wasm": "sha256-FtDm54RKiJD0uJUE8HppT4UD0AM8i3Gkg9OK/dPEBeo=",
+      "MasteryCoach.Coaching.Abstractions.wasm": "sha256-GZmmlbXgRCJ0H6/p2RL2rgMyWVYxuLbiyu8TT5tmUhs=",
+      "MasteryCoach.Content.Drumming.wasm": "sha256-fNar2P7SSXARGZlYXr8M3/99WnzOPbDbVtpXFJpZFQY=",
+      "MasteryCoach.Content.Guitar.wasm": "sha256-9PmghSivYmqPRN64aWHzB/tIQu7GWvrKYMMezEkKlEw=",
+      "MasteryCoach.Core.wasm": "sha256-YoVIIv8+sPBT3EPBgX8y46JE3kL7hvHHmFq/1ZaZ3PM=",
+      "MasteryCoach.Infrastructure.Abstractions.wasm": "sha256-/j3OR/rqLPwG1H5Ngf/R3at2Cls5g6yzY/NHhdrVqqk=",
+      "MasteryCoach.UI.wasm": "sha256-UGCK7W8uBj0njCN92A1pO8dFScIbM1KAGIProNApl30=",
+      "MasteryCoach.Web.wasm": "sha256-YiconFvWjU4Sc8cvpA0LkAus0j5FrEAN63E2UmYp3Ms="
     }
   },
   "cacheBootResources": true,

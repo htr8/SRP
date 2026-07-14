@@ -1652,6 +1652,8 @@ button.primary {
 
 .capture-health-recommendation span:last-child {
     overflow-wrap: anywhere;
+}
+
 .input-monitor-meter-fill.nosignal,
 .input-monitor-meter-fill.unavailable {
     background: #758390;
