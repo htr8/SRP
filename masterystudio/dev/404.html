@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mastery Studio</title>
+    <base href="/SRP/masterystudio/dev/" />
+    <script>
+        // GitHub Pages serves the repository-root 404 for direct SPA deep links. The deploy script's
+        // fallback redirects those URLs to /?/route; restore the clean route before Blazor boots so
+        // the router sees /practice, /capture, etc. under the rewritten <base href>.
+        (function (l) {
+            if (l.search && l.search[0] === '?' && l.search[1] === '/') {
+                var route = l.search.slice(2).split('&').map(function (part) {
+                    return part.replace(/~and~/g, '&');
+                }).join('?');
+                window.history.replaceState(null, '', l.pathname + route + l.hash);
+            }
+        }(window.location));
+    </script>
+    <link rel="stylesheet" href="css/app.css?v=20260714-bracefix" />
+    <link rel="stylesheet" href="_content/MasteryCoach.UI/app.css?v=20260714-bracefix" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <!-- Add-to-Home-Screen on iOS: without an apple-touch-icon iOS uses a screenshot of the page;
+         this gives the app-logo icon instead. apple-mobile-web-app-title pins the Home Screen name to
+         "Mastery Studio" regardless of the live document title. Paths are base-relative so they resolve
+         on the /SRP/ Pages subpath and locally alike (the <base href> is rewritten at deploy). -->
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Mastery Studio" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#141416" />
+    <!-- Blazor scoped-CSS bundle link intentionally removed: neither MasteryCoach.Web nor
+         MasteryCoach.UI defines any .razor.css scoped styles, so the bundle is never emitted and the
+         link 404'd on every navigation â€” each 404 firing a client_error analytics event (Umami
+         flood, 2026-07-12). Real styles load via css/app.css + _content/MasteryCoach.UI/app.css
+         above. If scoped CSS is ever added, restore:
+         <link href="MasteryCoach.Web.styles.css" rel="stylesheet" /> -->
+
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        <div class="error-title">An unhandled error has occurred.</div>
+        <pre id="blazor-error-detail" class="error-detail"></pre>
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">ðŸ—™</span>
+    </div>
+    <!-- COOP/COEP shim (coi-serviceworker 0.1.7, MIT, vendored â€” see lib/ort/VENDORED.md): grants
+         crossOriginIsolated on hosts that can't send the headers (GitHub Pages), which unlocks
+         SharedArrayBuffer â†’ multi-threaded WASM for in-browser stem separation (â‰ˆ3.5x faster than
+         the single-thread fallback). Triggers ONE automatic reload on a first visit. Must live at
+         the app root: a service worker only controls its own directory's scope. -->
+    <script>
+        // Boot gate for the shim below: on the very FIRST visit it registers its service worker
+        // and reloads the page â€” a Blazor boot racing that reload gets torn down mid-fetch and
+        // logs a spurious blazor.boot.json error into the diagnostics funnel (review finding).
+        // When the reload is coming (secure context, service workers available, page not yet
+        // controlled), hold Blazor.start() â€” the reload wins well inside the grace period. If the
+        // registration failed instead (private mode, policy), the timeout boots normally. Every
+        // controlled/isolated visit resolves instantly.
+        window.__mcBootGate = new Promise(function (resolve) {
+            try {
+                var sw = navigator.serviceWorker;
+                if (window.crossOriginIsolated || !window.isSecureContext || !sw || sw.controller) {
+                    resolve();
+                    return;
+                }
+                setTimeout(resolve, 3000);
+            } catch (e) { resolve(); }
+        });
+
+        // COEP mode for the shim below. DEFAULT 'require-corp' blocks any cross-origin subresource
+        // that lacks a Cross-Origin-Resource-Policy header â€” which silently killed the Umami
+        // analytics script (cloud.umami.is sends ACAO:* but no CORP). 'credentialless' still grants
+        // crossOriginIsolated (so multi-threaded stem separation keeps working) while allowing
+        // no-CORP cross-origin fetches WITHOUT credentials â€” exactly right for an anonymous
+        // analytics beacon. Tradeoff: credentialless is Chromium/Firefox only; older Safari/iOS
+        // fall back to single-thread separation (already device-gated). Must be set BEFORE the shim.
+        window.coi = { coepCredentialless: function () { return true; } };
+    </script>
+    <script src="coi-serviceworker.min.js"></script>
+    <!-- Usage analytics config (WebAnalyticsPlan.md). The Umami website-id is NOT secret (it only
+         names the dashboard that receives events), so it ships as the committed default; CI may
+         overwrite these values, and analytics.js stays silent on local/dev origins regardless. -->
+    <script>
+        window.__mcAnalytics = {
+            umamiSrc: "https://cloud.umami.is/script.js",
+            websiteId: "60ac53dc-aff1-4c42-89d4-09dd3b3b8e60"
+        };
+    </script>
+    <script src="_content/MasteryCoach.UI/js/analytics.js"></script>
+    <!-- Error bar + diagnostics-log bridge; shared with the MAUI head. -->
+    <script src="_content/MasteryCoach.UI/js/errorCapture.js"></script>
+    <!-- Gesture-anchored AudioContext unlock (iOS silence fix); must load before Blazor. -->
+    <script src="_content/MasteryCoach.UI/js/audioUnlock.js"></script>
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script>
+        // Manual start paired with the boot gate above (autostart would race the shim's reload).
+        window.__mcBootGate
+            .then(function () { return Blazor.start(); })
+            .catch(function (err) { console.error('Blazor boot failed:', err); });
+    </script>
+</body>
+
+</html>

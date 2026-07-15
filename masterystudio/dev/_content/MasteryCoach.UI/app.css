@@ -1,0 +1,4362 @@
+:root {
+    color-scheme: dark;
+    --bg: #101214;
+    --panel: #191d21;
+    --panel-2: #20262b;
+    --text: #f2f4f5;
+    --muted: #aab4bd;
+    --accent: #e44c2a;
+    --accent-2: #f0c35a;
+    --line: #313941;
+
+    /* Waveform control */
+    --wave-played: #e44c2a;
+    --wave-unplayed: #55636e;
+    --wave-body: rgba(120, 138, 150, 0.5);
+    --midi-hit: #8bd3ff;
+    --loop-band: rgba(240, 195, 90, 0.16);
+    --loop-edge: #f0c35a;
+    /* Saved loops: BLUE, distinct from the gold active loop, so users can tell saved markers apart. */
+    --saved-loop-band: rgba(122, 180, 255, 0.14);
+    --saved-loop-edge: #7fb4ff;
+    --mark-edge: #d6b2ff;
+    --skip-mark-edge: #ff8a5b;
+    /* Section readiness hues (also used by .wf-section.* below) — shared so the minimap ribbon matches. */
+    --wf-ready: #8ee3a2;
+    --wf-probably: #7fb4ff;
+    --wf-needswork: #f0c674;
+    --wf-notyet: #e07a7a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.app-shell {
+    min-height: 100vh;
+}
+
+/* Top bar with the hamburger toggle; the sidebar is an off-canvas overlay drawer. */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px; /* was a fixed height; min lets the two-line title grow the bar if a song wraps */
+    padding: 4px 16px;
+    border-bottom: 1px solid var(--line);
+    background: #15181b;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.topbar-title {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Take the space between the hamburger and the right-aligned help so a long song title can wrap
+       within the title column instead of shoving the layout. min-width:0 lets the sub line ellipsize. */
+    min-width: 0;
+    line-height: 1.15;
+}
+
+.topbar-title-app {
+    /* The app name stays put on line 1. */
+    white-space: nowrap;
+}
+
+/* Line 2 holds the song name and (on the Console) the mascot to its right. */
+.topbar-title-subrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0; /* let the song name ellipsize instead of shoving the mascot off */
+}
+
+.topbar-title-sub {
+    /* The context (song / page) on line 2: smaller, dimmer, wraps to at most two lines then ellipsizes
+       so an extreme title can't grow the bar without bound. */
+    font-weight: 600;
+    font-size: 0.82em;
+    color: var(--muted);
+    letter-spacing: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.topbar-mascot {
+    /* Small, sized to the two-line title block; never shrinks away when the name is long. */
+    flex: 0 0 auto;
+    height: 26px;
+    width: auto;
+    display: block;
+}
+
+/* The PLAYING mascot: the old GIF's 7 frames as a horizontal sprite strip, stepped by a CSS
+   animation — a GIF's frame timing is baked into the file, but a CSS animation-duration can be set
+   per song, so the headbang tracks the tempo (one bang per beat; MainLayout sets the duration
+   inline from ConsoleTitleState.Bpm). Frames are square, so width == height; background-size pins
+   the strip to exactly 7 frame-widths. The fallback duration is the strip's natural 0.7 s cycle. */
+.topbar-mascot-banging {
+    --mascot-size: 26px;
+    flex: 0 0 auto;
+    height: var(--mascot-size);
+    width: var(--mascot-size);
+    display: block;
+    background: url('metal-head-strip.png') no-repeat 0 0;
+    background-size: 700% 100%;
+    animation: mascot-headbang 0.7s steps(7) infinite;
+}
+
+@keyframes mascot-headbang {
+    to { background-position-x: calc(var(--mascot-size) * -7); }
+}
+
+/* Right-aligned help control on the Console topbar: a round "?" that reveals the waveform
+   interaction hint in a small popover below it. margin-left:auto pushes it to the far right. */
+.topbar-help {
+    position: relative;
+    margin-left: auto;
+}
+
+.topbar-help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.topbar-help-btn:hover { color: var(--text); border-color: var(--accent); }
+.topbar-help-btn.on { color: var(--accent-2); border-color: var(--accent-2); }
+.topbar-help-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+.topbar-help-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 40;
+    width: min(320px, 90vw);
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.topbar-help-pop .wf-hint {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.5;
+}
+.topbar-help-pop kbd {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+}
+
+.hamburger {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 40px;
+    height: 36px;
+    padding: 0 8px;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.hamburger span {
+    display: block;
+    height: 2px;
+    background: var(--text);
+    border-radius: 2px;
+}
+
+.hamburger:hover {
+    background: var(--panel-2);
+}
+
+/* Dim click-to-close layer behind the open drawer. */
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 30;
+}
+
+/* Reusable modal dialog (Modal.razor) — backdrop + centered panel. Non-blocking to audio; it only
+   overlays the UI. */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.55);
+    /* Let the panel scroll into view above the on-screen keyboard on phones. */
+    overflow-y: auto;
+}
+.modal-panel {
+    width: min(420px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+.modal-panel:focus { outline: none; }
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.modal-title { font-size: 1.05rem; font-weight: 650; }
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body { display: flex; flex-direction: column; gap: 12px; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.9rem; color: var(--muted); }
+.modal-field input {
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+.modal-hint { margin: 0; font-size: 0.8rem; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-btn {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.modal-btn:hover:not(:disabled) { border-color: var(--accent); }
+.modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Inline spinner for a busy modal button (e.g. "Adding…"). */
+.btn-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    vertical-align: -1px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spinner-spin 0.7s linear infinite;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 250px;
+    z-index: 40;
+    border-right: 1px solid var(--line);
+    background: #15181b;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+}
+
+.sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.brand-mark {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 800;
+}
+
+.brand span:last-child,
+.muted {
+    color: var(--muted);
+}
+
+.sidebar a {
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: var(--muted);
+}
+
+.sidebar a.active,
+.sidebar a:hover {
+    color: var(--text);
+    background: var(--panel-2);
+}
+
+/* App-wide UI zoom control, pinned to the bottom of the sidebar. */
+.zoom-control {
+    margin-top: auto;
+    padding-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.zoom-btn {
+    min-width: 28px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.zoom-btn.zoom-reset {
+    min-width: 0;
+}
+
+.zoom-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    min-width: 42px;
+    text-align: center;
+}
+
+.content {
+    padding: 32px;
+}
+
+.page-heading {
+    max-width: 920px;
+    margin-bottom: 24px;
+}
+
+.page-heading h1 {
+    margin: 0;
+    font-size: 2.2rem;
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: var(--accent-2);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    font-weight: 700;
+}
+
+.dashboard-grid,
+.studio-layout,
+.item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+/* Practice Studio stacks its panels full-width (waveform gets the whole row; timing sits below). */
+.studio-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+/* Compact the Console (user request, 2026-07-10): pull the page's top padding right down so the
+   source toolbar sits just under the app header, and cut ~80% of the LEFT/RIGHT page gutter so the
+   toolbars reach almost to the screen edges (the space before the first chevron and after the last
+   one). 32px desktop → 6px; the mobile overrides below trim their gutters the same way. Scoped to the
+   layout wrapper that actually holds the studio via :has(), so only this page tightens. */
+.content:has(.studio-stack) {
+    padding: 0 6px 32px;
+}
+.content:has(.studio-stack) .studio-stack {
+    gap: 0;
+}
+
+/* The Console article — deliberately NO card chrome (no border/background/padding, unlike .panel).
+   The waveform wants the full width; the old panel padding just cost space, and on phones the wave
+   bleeds to the screen edges (see the full-bleed rule under the waveform styles).
+   gap:0 here: the children set their own spacing, because the TOP source toolbar must sit right on
+   top of the wave with no gap (user request, 2026-07-10). The intrinsic margins that .control-toolbar
+   and .waveform carry elsewhere are zeroed inside the console (below), and the elements BELOW the wave
+   (playback bar, hint) add back a little breathing room via their own margins. */
+.studio-console {
+    --studio-toolbar-y-space: 4px;
+    --studio-toolbar-band: color-mix(in srgb, var(--panel) 58%, transparent);
+    --studio-toolbar-band-line: color-mix(in srgb, var(--line) 78%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: 16px;
+}
+
+/* Disable iOS double-tap-to-ZOOM on the interactive controls (user report 2026-07-13): a double-tap
+   on a button was zooming the page instead of hitting the control. `manipulation` allows tap + scroll
+   and KEEPS double-CLICK events (so the cents reset still works) — it only removes the browser's
+   double-tap-zoom gesture. Pinch-zoom stays available for accessibility. Scoped to controls so the
+   waveform keeps its own touch-action (drag/pan). */
+.studio-console button,
+.studio-console select,
+.studio-console input,
+.studio-console .stepper,
+.studio-console .seg,
+.studio-console .countin-toggle,
+.studio-console .toolbar-toggle,
+.studio-console .playback-rows,
+.studio-console .sound-row,
+.studio-console .control-toolbar,
+.studio-console .control-toolbar-pinned {
+    touch-action: manipulation;
+}
+
+/* Tight vertical rhythm in the Console: the source toolbar is half as loose as before, and the
+   playback toolbar below the wave uses the same above/below spacing. */
+.studio-console .control-toolbar-wrap { margin-top: 0; }
+.studio-console .waveform { margin: 0; }
+.studio-console .wf-hint { margin-top: 6px; margin-bottom: 0; }
+
+/* Keep vertical air on the outer toolbar band only. Inner rows stay tight so controls align as one
+   line; the wrap supplies the matching space above and below top and bottom toolbars. */
+.studio-console .control-toolbar-wrap {
+    padding-top: var(--studio-toolbar-y-space);
+    padding-bottom: var(--studio-toolbar-y-space);
+    padding-left: 8px;
+    padding-right: 8px;
+    background: linear-gradient(180deg, color-mix(in srgb, #fff 3%, var(--studio-toolbar-band)), var(--studio-toolbar-band));
+    border-top: 1px solid var(--studio-toolbar-band-line);
+    border-bottom: 1px solid var(--studio-toolbar-band-line);
+}
+.studio-console .control-toolbar,
+.studio-console .control-toolbar-scrollrow,
+.studio-console .control-toolbar-pinned { padding-top: 0; padding-bottom: 0; }
+
+/* Defensive console-scoped toolbar layout. In Chromium the later generic toolbar block can be parsed as
+   nested selectors if a preceding CSS edit leaves it in an invalid nesting context; keep the Practice
+   console usable by declaring the essential row layout here, beside the console rules that already
+   apply. */
+.studio-console .control-toolbar-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+.studio-console .control-toolbar-scrollrow {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.studio-console .control-toolbar {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.studio-console .control-toolbar::-webkit-scrollbar { display: none; }
+.studio-console .control-toolbar-pinned {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.studio-console .control-toolbar-pinned::-webkit-scrollbar { display: none; }
+.studio-console .toolbar-select {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: stretch;
+    height: 30px;
+    max-width: 220px;
+}
+.studio-console .toolbar-select select {
+    height: 30px;
+    max-width: 220px;
+    padding: 0 10px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1;
+    vertical-align: top;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+.studio-console .toolbar-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+.studio-console .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.studio-console .toolbar-scroll-chevron {
+    margin-bottom: 0;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+
+/* Top toolbar = context selection. Give the song picker a small visual break before actions/source. */
+.studio-console .control-toolbar-wrap:not(:has(.control-toolbar-pinned)) .toolbar-select:has(select[aria-label="Song"]) {
+    margin-right: 6px;
+}
+.studio-console .control-toolbar-wrap:not(:has(.control-toolbar-pinned)) .toolbar-toggle:not(.on) {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+
+/* Bottom toolbar = transport row + practice-tools row. Keep Play as the clear primary affordance. */
+/* The pinned-transport bars (transport+count-in+tools; loop) are ONE horizontal scrolling row — the
+   pinned group and the scroll row sit inline at their NATURAL width, left-aligned, no full-width
+   stretch or centering (which left big gaps after the mixer / loop toggle). */
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-height: calc(30px + (var(--studio-toolbar-y-space) * 2) + 2px);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar,
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-scrollrow,
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
+    height: 30px;
+    max-height: 30px;
+    align-items: center;
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    padding-bottom: 0;
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-scrollrow {
+    flex: 0 0 auto;
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned .wf-transport:not(.wf-play):not(.active) {
+    color: var(--muted);
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar .toolbar-toggle:not(.on) {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+.studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned .wf-transport.wf-play {
+    width: 44px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+    border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Left-align the top source toolbar (user request): its scroll row + content start at the left edge,
+   no centering, so "Band"/song sit flush against the gutter. */
+.studio-console .control-toolbar-scrollrow,
+.studio-console .control-toolbar { justify-content: flex-start; }
+
+.span-2 {
+    grid-column: span 2;
+}
+
+/* ---- Reusable accordion cards (AccordionCard.razor) ---- */
+.accordion-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.accordion-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.accordion-head {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 18px;
+    cursor: pointer;
+    font: inherit;
+}
+
+.accordion-head:hover { background: var(--panel-2); }
+.accordion-head:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+
+.accordion-chev {
+    color: var(--muted);
+    font-size: 12px;
+    width: 14px;
+    text-align: center;
+    transition: transform 0.18s ease;
+}
+.accordion-card.open .accordion-chev { transform: rotate(90deg); color: var(--accent-2); }
+
+.accordion-name { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+
+.accordion-summary {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Collapse via a grid-rows transition (animates height without measuring). */
+.accordion-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.2s ease;
+}
+.accordion-card.open .accordion-body { grid-template-rows: 1fr; }
+.accordion-inner { overflow: hidden; }
+.accordion-card.open .accordion-inner { padding: 0 18px 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .accordion-body, .accordion-chev { transition: none; }
+}
+
+/* Inline busy indicator (Spinner.razor): a spinning ring + optional label, used while a slow
+   async step (stem decode, waveform build, split) runs so the UI doesn't look idle. */
+.spinner-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.9em;
+}
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spinner-spin 0.7s linear infinite;
+    flex: none;
+}
+.spinner-label { line-height: 1; }
+@keyframes spinner-spin { to { transform: rotate(360deg); } }
+
+/* Standard progress indicator (ProgressIndicator.razor): determinate bar with %, or an indeterminate
+   spinner + label when progress isn't measurable. One look for every long-running task. */
+.progress-indicator { width: 100%; }
+.progress-indicator.determinate { display: flex; flex-direction: column; gap: 6px; }
+.progress-indicator-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    font-size: 0.85rem;
+}
+.progress-indicator-label { color: var(--muted); }
+.progress-indicator-pct {
+    color: var(--accent-2); font-variant-numeric: tabular-nums; font-size: 0.85rem;
+}
+.progress-track {
+    height: 6px; border-radius: 999px; overflow: hidden;
+    background: var(--panel-2); border: 1px solid var(--line);
+}
+.progress-fill {
+    height: 100%; border-radius: 999px;
+    background: var(--accent-2);
+    transition: width 0.2s ease;
+}
+.progress-indicator.indeterminate {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.9rem; color: var(--muted);
+}
+.progress-indicator-spinner {
+    width: 18px; height: 18px; flex: none;
+    border: 2px solid var(--line); border-top-color: var(--accent-2);
+    border-radius: 50%; animation: spinner-spin 0.75s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .progress-indicator-spinner { animation-duration: 1.6s; }
+    .progress-fill { transition: none; }
+}
+
+/* Where the load spinners sit in the Studio: a little breathing room around them. */
+.stem-loading { padding: 10px 0; }
+
+/* Linked-in-place audio marker (MusicLibraryInPlacePlan.md): quiet, small, sits above the waveform. */
+.linked-audio-note { font-size: 12px; margin: 0 0 6px; }
+
+/* ---- Music library page (MusicLibraryInPlacePlan.md §5) ---- */
+.library-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.library-root {
+    font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch;
+}
+.library-status { padding: 12px 0; }
+.library-search { display: flex; align-items: center; gap: 12px; margin: 12px 0 6px; }
+.library-search input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; }
+.library-list { display: flex; flex-direction: column; }
+.library-row {
+    display: flex; align-items: center; gap: 12px; padding: 8px 4px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.library-row:last-child { border-bottom: none; }
+.library-meta { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.library-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-sub { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-practice { flex: 0 0 auto; }
+.waveform-loading { padding: 6px 0; }
+/* Spinner shown inside the mixer drawer while the Original mix decodes into the stem engine. */
+.mixer-loading { display: flex; align-items: center; justify-content: center; padding: 24px 0; }
+/* The Add-a-song progress indicator, under the source pickers. */
+/* Wrapper for a ProgressIndicator in the Console (song load, add-song) — just a little breathing room. */
+.console-progress { padding: 10px 2px; }
+
+/* The wave area is a positioning context so the song-load overlay can dim it in place. A min-height
+   only while loading guarantees the overlay is visible even before the first wave exists. */
+.wave-overlay-host { position: relative; }
+.wave-overlay-host:has(.loading-overlay:not(.page-center)) { min-height: 120px; }
+
+/* Standard loading overlay (LoadingOverlay.razor): a translucent scrim over its host + a centered
+   ProgressIndicator. The host stays visible but dimmed underneath — a load reads as "working" without
+   a blank flash or layout shift. */
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    border-radius: 8px;
+}
+.loading-overlay-inner {
+    max-width: 90%;
+    padding: 14px 18px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+/* Page-center variant (fixed): for loads with no wave to sit over, e.g. adding a new song. */
+.loading-overlay.page-center {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.5);
+}
+/* The mixer's action-links toolbar at the top of the drawer (Generate click track, ＋ Track). */
+.mixer-actions-bar { margin-bottom: 8px; }
+.mixer-actions-bar .track-name-input { flex: 0 0 auto; }
+
+/* Determinate stem-load progress (label above a full-width bar). */
+.stem-loading progress {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    margin-top: 4px;
+}
+
+/* Inline click-generation progress in the mixer header (label + compact bar on one line). */
+.click-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+.click-progress progress { width: 140px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 1.6s; }
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 16px;
+}
+
+.panel h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.quick-stats div {
+    background: var(--panel-2);
+    padding: 12px;
+    border-radius: 6px;
+}
+
+.quick-stats strong {
+    display: block;
+    font-size: 1.7rem;
+}
+
+.quick-stats span {
+    color: var(--muted);
+}
+
+.table-list {
+    display: grid;
+    gap: 8px;
+}
+
+.table-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+}
+
+/* ---- Compact DAW-style mixer (channel-strip rows) ------------------------------------------------ */
+.waveform-mixer-drawer {
+    margin-top: 0;
+    padding: 8px 0 10px;
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--panel-2) 92%, #000),
+            color-mix(in srgb, var(--panel) 86%, #000));
+    border-top: 1px solid color-mix(in srgb, var(--accent-2) 34%, var(--line));
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--accent-2) 10%, transparent),
+        inset 0 10px 18px color-mix(in srgb, #000 10%, transparent);
+}
+
+.mixer { display: flex; flex-direction: column; }
+
+.mixer-head {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 4px 4px;
+}
+
+/* One tight channel strip: accent rail · name · M/S · fader+% · pan+label. */
+.mixer-row {
+    display: grid;
+    /* rail | name | mute/solo | volume knob | pan knob. The M/S, Vol and Pan columns are FIXED widths
+       (not auto) so every row computes the SAME tracks — otherwise the header row's text and each strip's
+       controls sized the auto columns differently and the headers didn't line up (user report). Widths:
+       M/S = two 24px pills + 4px gap (--ms-col, widened by .dual-mix below for the third Cue pill);
+       Vol/Pan = knob dial + its value text ("L 100%"). name takes slack. */
+    grid-template-columns: 4px minmax(52px, 1fr) var(--ms-col, 52px) 84px 84px;
+    align-items: center;
+    column-gap: 10px;
+    min-height: 42px;
+    padding: 5px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.mixer-row:last-child { border-bottom: none; }
+.mixer-row:not(.mixer-header-row):hover {
+    background: color-mix(in srgb, #fff 3%, transparent);
+}
+
+/* Column-header row: reuses the strip grid so labels sit over their columns. Dim, small, uppercase —
+   reads as a header, not a strip. Min-height trimmed since it holds only text. */
+.mixer-header-row {
+    min-height: 0;
+    padding-top: 2px;
+    padding-bottom: 4px;
+    background: color-mix(in srgb, #000 7%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+.mixer-header-row .mixer-rail { background: transparent; } /* no accent on the header */
+.mixer-col-head {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+/* The M/S, Vol and Pan columns are auto-sized and centred over their controls; the name header sits
+   left like the names. */
+.mixer-col-ms, .mixer-col-fader, .mixer-col-pan { text-align: center; }
+.mixer-col-name { text-align: left; }
+
+/* Per-stem accent rail (color set inline via --stem-accent). */
+.mixer-rail {
+    align-self: stretch;
+    border-radius: 999px;
+    background: var(--stem-accent, var(--muted));
+    box-shadow: 0 0 10px color-mix(in srgb, var(--stem-accent, var(--muted)) 16%, transparent);
+}
+
+.mixer-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--stem-accent, var(--text)) 72%, var(--text));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The stem name doubles as a solo toggle (multi-select) — reset the button chrome so it reads as the
+   name, add a text-left/underline-on-hover affordance, and light up when its track is soloed. */
+.mixer-name-solo {
+    display: block;
+    width: 100%;
+    padding: 0;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+.mixer-name-solo:hover { text-decoration: underline; }
+.mixer-name-solo.on { text-decoration: underline; }
+.mixer-name-solo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A soloed row gets a faint tint + a brighter accent rail so the soloed set is scannable at a glance. */
+.mixer-row.soloed {
+    background: color-mix(in srgb, var(--stem-accent, var(--accent-2)) 9%, transparent);
+}
+.mixer-row.soloed:hover {
+    background: color-mix(in srgb, var(--stem-accent, var(--accent-2)) 13%, transparent);
+}
+.mixer-row.soloed .mixer-rail {
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--stem-accent, var(--accent-2)) 58%, transparent),
+        0 0 12px color-mix(in srgb, var(--stem-accent, var(--accent-2)) 28%, transparent);
+}
+
+/* Mute / Solo toggle pills. */
+.mixer-ms { display: inline-flex; gap: 4px; }
+.ms-pill {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--muted);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    cursor: pointer;
+}
+.ms-pill:hover { border-color: var(--muted); }
+.ms-pill.mute.on { color: var(--bg); background: var(--danger, #c0524a); border-color: var(--danger, #c0524a); }
+.ms-pill.solo.on { color: var(--bg); background: var(--accent-2); border-color: var(--accent-2); }
+/* Dual-mix Cue pill: monitor-only routing (DualMixPlan.md Phase B) — shown only while dual-mix is on. */
+.ms-pill.cue.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+/* Recording-track arm pill: red when armed (the record destination), like a hardware record button. */
+.ms-pill.arm.on { color: #fff; background: var(--danger, #c0524a); border-color: var(--danger, #c0524a); }
+.ms-pill:disabled { opacity: 0.4; cursor: default; }
+
+/* Dual-mix ON: the M/S column grows a third pill (Cue) — ONE override of the shared --ms-col track
+   covers desktop and mobile, so the fixed-width header-alignment rule can't drift between the four
+   templates. Pan knobs are INERT while on (each hard-panned bus mono-sums — DualMixPlan.md §3.2):
+   greyed here; input is blocked by the `inert` attribute (the knob is keyboard-operable, so
+   pointer-events alone wasn't enough). Values are kept and apply again when dual-mix turns off. */
+.mixer.dual-mix .mixer-row { --ms-col: 80px; }
+.mixer-pan.pan-inert { opacity: 0.35; }
+
+/* The visible mono-summing warning beside the toolbar toggle while dual-mix is on (typography from
+   the shared .hint class; only the wrap-to-own-line layout is specific to this note). */
+.dual-mix-note { flex: 1 1 100%; }
+
+/* A recording track with no take yet — ghosted until something lands on it. */
+.mixer-row.track-row-empty { opacity: 0.75; }
+
+/* The armed-input strip: mic picker + live level meter, shown while a track is armed. */
+.mic-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    background: var(--panel);
+    border: 1px solid color-mix(in srgb, var(--danger, #c0524a) 45%, var(--line));
+    border-radius: 6px;
+    font-size: 12px;
+}
+.mic-row select {
+    max-width: 220px;
+    min-width: 120px;
+    height: 26px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    /* iOS/WKWebView renders a native select with OS-default (dark) text that ignores `color`,
+       so on the dark theme the label was near-invisible (dark-on-dark — user screenshot 2026-07-11).
+       Strip the native appearance so our explicit color/background applies, and add a caret + room
+       for it so it still reads as a dropdown. */
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 22px 0 8px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+/* The option list is drawn by the OS popup; force readable colors there too (some WebViews honor
+   these, and it's harmless where they don't). */
+.mic-row select option {
+    color: var(--text);
+    background: var(--panel-2);
+}
+.mic-hint { font-size: 11px; }
+.mic-hint-dismiss {
+    margin-left: 6px;
+    padding: 0 4px;
+    font-size: 11px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+.mic-hint-dismiss:hover { color: var(--text); }
+.mic-row .link-button.punch { color: var(--danger, #c0524a); font-weight: 600; }
+
+/* Calibration dialog status line: neutral while listening, danger tint on an error. */
+.calib-status {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--text);
+}
+.calib-status.error {
+    color: var(--danger, #c0524a);
+}
+
+/* The expanded track's editor line under the strips: rename, mode, take picker, undo, delete. */
+.track-editor {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px;
+    margin-top: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 12px;
+}
+.track-editor .check-row { margin: 0; white-space: nowrap; }
+.track-editor .link-button.danger { color: var(--danger, #c0524a); }
+.track-disk-usage { font-size: 11px; margin-left: auto; white-space: nowrap; }
+
+.track-name-input {
+    flex: 0 1 160px;
+    min-width: 90px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    outline: none;
+}
+.track-name-input:focus { border-color: var(--accent-2); }
+/* In the Add-track modal the name field is a full-width, single-row text box (not the compact toolbar
+   variant, and NOT a textarea look). Overrides the toolbar-sized flex/height above. */
+.modal-field .track-name-input {
+    flex: none;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    border-radius: 6px;
+}
+
+/* Fader + value; pan + label. Compact, side-by-side. Centered in their fixed grid column so the knob
+   sits under its header label; overflow hidden so a long value ("L 100%") can't widen the fixed cell. */
+.mixer-fader,
+.mixer-pan {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+}
+/* M/S pills centered under the "M/S" header. */
+.mixer-ms { justify-content: center; }
+.mixer-fader input[type="range"],
+.pan-track input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    height: 18px;
+    display: block;
+}
+.mixer-fader input[type="range"] { flex: 1 1 auto; }
+
+/* Pan track wraps just the slider so the centre detent lands on the slider's true midpoint. */
+.pan-track {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.pan-track::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1px;
+    height: 10px;
+    transform: translate(-50%, -50%);
+    background: var(--line);
+    pointer-events: none;
+}
+.mixer-val {
+    flex: 0 0 auto;
+    min-width: 34px;
+    text-align: right;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+
+/* Rotary knob (Knob.razor) — the mixer volume/pan control. A small SVG dial + a value label; drag
+   up/down to adjust, arrows/wheel to nudge, double-click to reset. Touch-friendly and keyboard-
+   accessible (role="slider"). */
+.knob {
+    display: inline-flex;
+    flex-wrap: nowrap;         /* dial + value stay on one line, never wrap inside the mixer cell */
+    align-items: center;
+    gap: 6px;
+    cursor: ns-resize;         /* signals the vertical-drag gesture */
+    touch-action: none;        /* let JS own the drag; don't let the page scroll steal it */
+    user-select: none;
+    border-radius: 6px;
+    padding: 1px 2px;
+}
+.knob:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.knob.dragging { cursor: ns-resize; }
+.knob-dial {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    display: block;
+}
+.knob-track {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 3;
+}
+.knob-indicator {
+    stroke: var(--accent-2);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+.knob-hub { fill: var(--muted); }
+.knob-val {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    min-width: 30px;
+}
+/* A pan knob at dead center reads as neutral (matches the old centered-pan accent). */
+.knob.centered .knob-indicator { stroke: var(--muted); }
+.knob.centered .knob-val { color: var(--accent-2); }
+
+/* With knobs the fader/pan cells are compact, not full-width — left-align them. */
+.mixer-fader, .mixer-pan { justify-content: flex-start; }
+
+/* Click-track sections sub-panel (ClickTrackPlan.md §11): per-section audible + density under the
+   stem rows. Mirrors the channel-strip idiom — ms-pill toggles, compact rows, muted = dimmed. */
+.click-sections {
+    margin-top: 6px;
+    padding: 4px 8px 2px;
+    border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.click-sections-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 0 4px;
+}
+.click-sections-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: auto;
+}
+.click-sections-default {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+}
+.click-sections-hint { font-size: 11px; color: var(--muted); }
+.click-section-row {
+    display: grid;
+    grid-template-columns: minmax(96px, 1fr) auto auto auto;
+    align-items: center;
+    column-gap: 10px;
+    min-height: 30px;
+    padding: 2px 0;
+}
+.click-bpm {
+    width: 64px;
+    font-size: 11px;
+    padding: 2px 4px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    font-variant-numeric: tabular-nums;
+}
+.click-bpm::placeholder { color: var(--muted); }
+
+/* Click-section edit mode: same toggle, visibly different state so the user knows which lane the
+   waveform is editing (track sections vs the click track's sections). */
+.toolbar-toggle.on.click-mode {
+    background: color-mix(in srgb, var(--accent-2) 25%, var(--panel-2));
+    border-color: var(--accent-2);
+}
+.click-section-row.muted .click-section-name { color: var(--muted); text-decoration: line-through; }
+.click-section-name {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.click-sections select {
+    font-size: 11px;
+    padding: 2px 4px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+}
+
+/* Bipolar pan: "C" (centred) reads in the accent so it's obvious when a stem is dead-centre. */
+.mixer-pan.centered .mixer-val { color: var(--accent-2); }
+
+/* The recorded-take row gets the same quiet accent treatment as the stems. */
+.mixer-row.take-row {
+    background: color-mix(in srgb, var(--stem-accent, var(--accent)) 7%, transparent);
+}
+.take-pick { display: flex; align-items: center; }
+.take-pick select {
+    width: 100%;
+    max-width: 170px;
+    height: 24px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+}
+/* A take row that is JUST the picker (no take loaded) hides the M/S/fader/pan cells. */
+.take-row-empty .mixer-ms,
+.take-row-empty .mixer-fader,
+.take-row-empty .mixer-pan { visibility: hidden; }
+
+@media (max-width: 760px) {
+    /* Knobs are compact, so volume and pan each get their OWN column on mobile too (a table: rail |
+       name | mute/solo | volume | pan). The old mobile rule stacked them in one column (built for the
+       full-width sliders) — with knobs that just piled volume above pan (user bug report, 2026-07-11). */
+    .mixer-row {
+        /* FIXED M/S/Vol/Pan widths here too so the header row lines up with the strips on mobile (auto
+           columns sized per-row differently — user report). Slightly tighter than desktop for phones.
+           The M/S track shares --ms-col, so the dual-mix Cue-pill widening applies here for free. */
+        grid-template-columns: 4px minmax(48px, 1fr) var(--ms-col, 52px) 78px 78px;
+        column-gap: 8px;
+        row-gap: 4px;
+    }
+    .mixer-fader { grid-column: 4; }
+    .mixer-pan { grid-column: 5; }
+}
+
+.status {
+    color: var(--accent-2);
+    font-weight: 700;
+}
+
+label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    margin: 10px 0;
+}
+
+label.check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+}
+
+label.check-row input {
+    width: auto;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #0d0f11;
+    color: var(--text);
+    padding: 10px;
+}
+/* The rule above is for TEXT-style fields; it must NOT apply to checkboxes/radios — full width +
+   10px padding blew a checkbox up to fill its row and shoved its label off screen (tuner "Chromatic"
+   report). Reset the toggle controls to their natural box so labels sit beside them. */
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    padding: 0;
+    border-radius: 0;
+    /* Keep the native control look — the dark background/border above is wrong for a tick box. */
+    background: revert;
+    border: revert;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.hint {
+    font-size: 0.75rem;
+    opacity: 0.55;
+    font-weight: normal;
+}
+
+/* Glanceable state chip shown on a collapsed accordion header (e.g. "6 stems", "running"). */
+.chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.chip + .chip {
+    margin-left: 6px;
+}
+
+.chip-accent {
+    border-color: var(--accent-2);
+    color: var(--accent-2);
+}
+
+.part-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.part-row:hover {
+    border-color: var(--accent, #4a90d9);
+}
+
+.part-row.part-selected {
+    outline: 2px solid var(--accent, #4a90d9);
+    outline-offset: -1px;
+}
+
+.part-check {
+    color: var(--accent, #4a90d9);
+    font-weight: bold;
+}
+
+.stale-note {
+    color: var(--warn, #d9a441);
+}
+
+.stem-library-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+button.danger {
+    border-color: var(--danger, #c0524a);
+    color: var(--danger, #c0524a);
+}
+
+button.danger:hover:not(:disabled) {
+    background: var(--danger, #c0524a);
+    color: #fff;
+}
+
+/* Inline "not split yet — split now?" prompt shown when the Library picker lands on an un-split
+   library. A quiet bordered row so it reads as a follow-up to the dropdown, not a separate panel. */
+.split-prompt {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2);
+}
+
+.split-prompt progress {
+    flex-basis: 100%;
+    height: 8px;
+}
+
+/* A quiet text-style button for secondary affordances (e.g. "Or import your own stem files…"). */
+.link-button {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    margin-top: 8px;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+}
+
+.link-button:hover:not(:disabled) {
+    color: var(--text);
+}
+
+/* Compact REAL buttons for mixer-area actions (BUGS.md #6): read as buttons (border + fill), sized
+   for the tight channel strips where the full-size button would be too bulky. */
+.mixer-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.mixer-btn:hover:not(:disabled) { border-color: var(--accent-2); }
+.mixer-btn:disabled { opacity: 0.55; cursor: default; }
+
+.detect-notes {
+    margin-top: 12px;
+}
+
+.detect-notes progress {
+    width: 100%;
+    margin-top: 8px;
+    height: 8px;
+}
+
+.note-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.note-chip {
+    font-size: 0.8rem;
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel-2);
+}
+
+button {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 10px 14px;
+    font-weight: 700;
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.success {
+    color: #8ee3a2;
+    font-weight: 700;
+}
+
+.danger-text {
+    color: var(--danger, #c0524a);
+    font-weight: 700;
+}
+
+/* Non-success status text (e.g. "a job is already running") — amber so it doesn't read as success in
+   the green .success banner. */
+.input-monitor-panel {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.input-monitor-compact {
+    display: grid;
+    grid-template-columns: minmax(90px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-monitor-meter {
+    height: 12px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+}
+
+.input-monitor-meter-fill {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    transition: width 120ms linear;
+}
+
+.input-monitor-meter-fill.healthy {
+    background: #61d394;
+}
+
+.input-monitor-meter-fill.warning {
+    background: #e6b566;
+}
+
+.input-monitor-meter-fill.clipping {
+    background: #ff6b57;
+}
+
+.capture-health-details {
+    display: grid;
+    gap: 8px;
+}
+
+.capture-health-details > div {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+}
+
+.capture-health-details span:first-child {
+    color: var(--muted);
+}
+
+.capture-health-recommendation span:last-child {
+    overflow-wrap: anywhere;
+}
+
+.input-monitor-meter-fill.nosignal,
+.input-monitor-meter-fill.unavailable {
+    background: #758390;
+}
+
+.input-monitor-badge {
+    min-width: 86px;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.8rem;
+}
+
+.input-monitor-badge.healthy {
+    color: #8ee3a2;
+    border-color: color-mix(in srgb, #61d394 50%, var(--line));
+}
+
+.input-monitor-badge.warning {
+    color: #f0c35a;
+    border-color: color-mix(in srgb, #e6b566 55%, var(--line));
+}
+
+.input-monitor-badge.clipping {
+    color: #ff8a76;
+    border-color: color-mix(in srgb, #ff6b57 55%, var(--line));
+}
+
+.input-monitor-badge.nosignal,
+.input-monitor-badge.unavailable,
+.input-monitor-device {
+    color: var(--muted);
+}
+
+.input-monitor-device {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+}
+
+.input-monitor-device-picker {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.input-monitor-channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.warn {
+    color: #e6b566;
+    font-weight: 700;
+}
+
+.tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag-row span {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 10px;
+    color: var(--muted);
+}
+
+/* Timing map: one row per measure; the marker shows the measure's mean offset vs the click. */
+.timing-map {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.timing-map .map-row {
+    display: grid;
+    grid-template-columns: 40px 56px 1fr 84px;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2);
+}
+
+.timing-map .offset-track {
+    position: relative;
+    height: 14px;
+    border-radius: 7px;
+    background: linear-gradient(to right, transparent calc(50% - 1px), var(--line) calc(50% - 1px), var(--line) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+.timing-map .offset-marker {
+    position: absolute;
+    top: 2px;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.timing-map .map-tag {
+    text-align: center;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.85em;
+    font-weight: 700;
+}
+
+.timing-map .tag-tight { color: #8ee3a2; border: 1px solid #8ee3a2; }
+.timing-map .tag-ok { color: var(--muted); border: 1px solid var(--line); }
+.timing-map .tag-rushing,
+.timing-map .tag-dragging { color: #f0c674; border: 1px solid #f0c674; }
+.timing-map .tag-loose { color: #e07a7a; border: 1px solid #e07a7a; }
+.timing-map .tag-sparse,
+.timing-map .tag-silent { color: var(--muted); border: 1px dashed var(--line); }
+
+/* Diagnostics log viewer + crash panel */
+.log-view {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    max-height: 60vh;
+    overflow: auto;
+    font-size: 0.85em;
+}
+
+.log-view .log-row {
+    display: grid;
+    grid-template-columns: 92px 44px 110px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2);
+}
+
+.log-view .log-row pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: Consolas, monospace;
+}
+
+.log-view .log-problem {
+    border-color: #e07a7a;
+}
+
+/* Phones (BUGS.md #10): the fixed metadata columns leave the log message ~80px wide on a 390px
+   screen — restack each entry as a meta line (time · level · source) with the message full-width
+   underneath, stack Environment label/value rows, and trim the desktop content padding. */
+@media (max-width: 640px) {
+    .content { padding: 16px 12px; }
+
+    .log-view { font-size: 0.8em; }
+    .log-view .log-row {
+        grid-template-columns: auto auto 1fr; /* time · level · source share the meta line */
+        row-gap: 2px;
+    }
+    .log-view .log-row pre {
+        grid-column: 1 / -1; /* the message gets the full row beneath the meta line */
+    }
+
+    .table-list .table-row {
+        grid-template-columns: 1fr; /* label above value, so long values (paths) can wrap */
+        gap: 2px;
+    }
+    .table-list .table-row span { word-break: break-word; }
+}
+
+.log-view .log-problem .log-level {
+    color: #e07a7a;
+    font-weight: 700;
+}
+
+.error-stack {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: Consolas, monospace;
+    font-size: 0.85em;
+    max-height: 50vh;
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid #e07a7a;
+    border-radius: 6px;
+    background: var(--panel-2);
+}
+
+@media (max-width: 760px) {
+    .content {
+        padding: 20px;
+    }
+
+    .span-2 {
+        grid-column: auto;
+    }
+
+    .table-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Waveform control ---- */
+.waveform {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 12px 0;
+    user-select: none;
+}
+
+/* Full-bleed the studio wave to the screen edges on phones (user request, 2026-07-10). The
+   100vw/50%/translateX pattern spans the whole viewport regardless of the page gutter (.content
+   padding), so it doesn't need to know that padding. Side border + radius are dropped (a rounded card
+   floating at the screen edge reads wrong); the top/bottom rules keep it framed vertically. Scoped to
+   the Console so other waveform usages are untouched, and to touch/coarse pointers so desktop — where
+   100vw would include the scrollbar and cause a sliver of horizontal overflow — is unaffected. */
+@media (max-width: 760px) and (pointer: coarse) {
+    /* Full-bleed containers. The 100vw/50%/translateX(-50%) pattern only lands the box's left edge on
+       the viewport edge when margin-left's 50% resolves against a box whose own left edge is ALREADY at
+       the console gutter — i.e. a DIRECT child of .studio-console. The playback toolbar's transport and
+       loop rows are now .control-toolbar-wraps NESTED inside .playback-rows, so their 50% resolves
+       against the (narrower, gutter-inset) .playback-rows width and the box shifts LEFT off-screen,
+       clipping the leftmost buttons (transport/tempo-−/loop controls all vanished — user screenshot
+       2026-07-13). Fix: full-bleed .playback-rows ONCE as the single container, and DON'T bleed the
+       wraps inside it (`:not(.playback-rows *)`) — they just fill it at width:100%. */
+    .studio-console .control-toolbar-wrap:not(.playback-rows *),
+    .studio-console .playback-rows,
+    .studio-console .waveform-mixer-drawer,
+    .studio-console .waveform,
+    .studio-console .waveform-placeholder {
+        width: 100vw;
+        margin-left: 50%;
+        transform: translateX(-50%);
+    }
+    /* Toolbar wraps nested in the full-bled .playback-rows must NOT re-bleed — fill the parent instead. */
+    .studio-console .playback-rows .control-toolbar-wrap {
+        width: 100%;
+        margin-left: 0;
+        transform: none;
+    }
+    .studio-console .waveform-mixer-drawer,
+    .studio-console .playback-rows,
+    .studio-console .control-toolbar-wrap:not(.playback-rows *) {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .studio-console .waveform,
+    .studio-console .waveform-placeholder {
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}
+
+/* Large, calm placeholder shown while the waveform peaks are being built, instead of an empty wave
+   (user request, 2026-07-10). Matches the wave's panel look and height/width so the swap to the real
+   wave doesn't move the layout. A big centred ring + a subtle shimmer read as "working", not "broken". */
+.waveform-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    /* wave box (240) + the wave's own vertical padding/ruler space, so the footprint matches. */
+    height: 300px;
+    background:
+        linear-gradient(100deg,
+            var(--panel-2) 30%,
+            color-mix(in srgb, var(--accent-2) 6%, var(--panel-2)) 50%,
+            var(--panel-2) 70%) 0 0 / 200% 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    animation: waveform-placeholder-shimmer 1.8s ease-in-out infinite;
+}
+
+.waveform-placeholder-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spinner-spin 0.9s linear infinite;
+}
+
+.waveform-placeholder-label {
+    font-size: 0.9rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+
+@keyframes waveform-placeholder-shimmer {
+    0%, 100% { background-position: 0 0; }
+    50% { background-position: 100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .waveform-placeholder { animation: none; }
+    .waveform-placeholder-spinner { animation-duration: 1.6s; }
+}
+
+/* The under-wave interaction hint has two variants; show the one matching the input device. Default
+   (mouse/keyboard) shows the desktop text; a coarse pointer with no hover (phones/tablets) shows the
+   touch text instead. Keying on the pointer, not a width breakpoint, keeps a large touch tablet on the
+   touch wording and a small desktop window on the desktop wording. */
+.wf-hint-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+    .wf-hint-desktop { display: none; }
+    .wf-hint-touch { display: block; }
+}
+
+/* Positioning context for the zoom control overlay, which is a sibling of (not inside) the slider box. */
+.waveform-box-wrap {
+    position: relative;
+}
+
+.waveform-box {
+    position: relative;
+    /* Twice the old 120px for a much bigger, more usable wave (user request, 2026-07-10). The JS
+       ResizeObserver (waveform.js) repaints the canvas at whatever height this resolves to, so the
+       taller box needs no JS change. */
+    height: 240px;
+    cursor: text;
+}
+
+/* Collapsed wave: hide the tall pieces (sections lane, ruler, main box) and keep ONLY the overview
+   minimap strip — a compact "just the essentials" view (user request). The minimap still shows the
+   whole song, the playhead, and the saved-loop/section markers. The main canvas is display:none'd, so
+   its ResizeObserver reports 0 and waveform.js skips painting it (guarded); it repaints on expand. */
+.waveform.collapsed .waveform-lane,
+.waveform.collapsed .waveform-ruler,
+.waveform.collapsed .waveform-box-wrap {
+    display: none;
+}
+.waveform.collapsed .waveform-minimap {
+    margin-top: 0;
+    border-top: none;
+}
+
+/* Overview minimap: a quiet navigation strip, visually separate from the main waveform. Its canvas
+   fills the strip; minimap.js keeps the waveform muted and emphasizes viewport/loop context instead. */
+.waveform-minimap {
+    height: 42px;
+    margin-top: 6px;
+    padding: 6px 0 4px;
+    background: color-mix(in srgb, var(--bg) 42%, var(--panel-2));
+    border-top: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent);
+    cursor: pointer;
+}
+.waveform-minimap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* Let minimap.js own the drag; without this iOS Safari claims the touch for page scroll after the
+       first small move and CANCELS the pointer stream — the drag "dragged a little then stuck" (user
+       report 2026-07-12). Same fix the main waveform canvas already has. */
+    touch-action: none;
+}
+
+/* Wave HEADER bar (WaveHeaderPlan): a glanceable status strip above the wave — the collapse handle on
+   the left, tempo/pitch/count-in readouts in the middle, the clock on the right. Replaces the old
+   in-wave corner overlay so the info stays visible when the wave is collapsed to just this bar. */
+.waveform-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    padding: 2px 6px;
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+/* When collapsed the header is the whole control — round its corners and drop the divider. */
+.waveform.collapsed .waveform-header {
+    border-bottom: none;
+    border-radius: 8px;
+}
+
+/* Collapse handle: the ▾/▸ chevron + "Wave" label. A real button (keyboard + a11y). */
+.waveform-collapse {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.waveform-collapse:hover { color: var(--text); border-color: var(--line); }
+.waveform-collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.waveform-collapse-glyph { font-size: 11px; }
+.waveform-collapse-lbl { font-weight: 600; }
+
+/* The readout group grows to fill the middle; the clock is pushed right by its own margin-left:auto. */
+.waveform-header-readouts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* One readout (tempo / pitch / count-in). A muted-mono chip today, built as a discrete element so it can
+   become an interactive control later without reworking the header. */
+.wave-readout {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+    border-radius: 4px;
+    padding: 1px 7px;
+    white-space: nowrap;
+}
+.wave-readout-glyph { opacity: 0.8; }
+
+/* Position / length clock, pinned right. */
+.waveform-header-clock {
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.waveform-box canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    /* Claim horizontal touch gestures for our own pan/seek handlers. Without this, iOS/Android WebViews
+       treat a horizontal finger drag as a page scroll before pointermove fires, so grab-to-pan is dead on
+       touch. `pan-y` still lets a vertical swipe scroll the page past the (short) waveform. */
+    touch-action: pan-y;
+}
+
+/* While panning the zoomed window, show the grab cursor over the whole box (JS toggles .panning). */
+.waveform-box.panning { cursor: grabbing; }
+
+/* On-screen zoom control (+/−/fit), bottom-right corner of the wave so it clears the top-right clock.
+   Faint until you hover the wave; always visible on touch (no hover). Overlays the canvas as a sibling
+   of the slider box (positioned by .waveform-box-wrap). */
+.wf-zoom-ctl {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
+}
+
+.waveform-box-wrap:hover .wf-zoom-ctl,
+.wf-zoom-ctl:focus-within { opacity: 1; }
+
+@media (hover: none) {
+    /* Touch devices have no hover and no wheel/keyboard zoom — keep the control readable at all times. */
+    .wf-zoom-ctl { opacity: 0.7; }
+}
+
+.wf-zoom-btn {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.wf-zoom-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+/* Disabled on-wave zoom button (Fit-whole-track when already fitted): dim + no hover, so it stays in
+   place as a stable, clearly-inactive control instead of disappearing (user request 2026-07-12). */
+.wf-zoom-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Engaged toggle (center-lock scroll): filled accent so its on/off state reads at a glance. */
+.wf-zoom-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.waveform-playhead {
+    position: absolute;
+    top: -3px;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(228, 76, 42, 0.6);
+    pointer-events: none;
+}
+
+/* Waveform transport bar */
+.waveform-transport {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.wf-transport {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 30px;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.wf-transport:hover {
+    border-color: var(--accent);
+}
+
+.wf-transport:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.wf-transport.wf-play {
+    width: 40px;
+    color: var(--accent);
+}
+
+.wf-time {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Right-align the readout only in the standalone transport row; in the combined toolbar an
+   auto margin would shove the pills to the far edge. */
+.waveform-transport .wf-time {
+    margin-left: auto;
+}
+
+/* Playback control toolbar — a scrollable row of collapsible pills, family with the transport bar.
+   The row scrolls sideways on overflow but hides its native scrollbar; the flanking chevrons (below)
+   drive the scroll instead. */
+.control-toolbar-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    margin-top: 8px;
+}
+/* Left chevron + scrolling pill row + right chevron, kept together on a single line. Grouping them in
+   their own non-wrapping flex line means that when the wrap wraps on phones (to drop the transport to
+   its own row) the chevrons stay flanking the row instead of wrapping above/below it. */
+.control-toolbar-scrollrow {
+    flex: 1 1 auto;
+    min-width: 0; /* allow the inner row to shrink-and-scroll rather than push the group wider */
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.control-toolbar {
+    flex: 1 1 auto;
+    min-width: 0; /* let the row shrink so it actually overflows-and-scrolls instead of pushing width */
+    display: flex;
+    align-items: center; /* vertically center dropdowns, chevron, transport and pills on one row */
+    gap: 6px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+    /* Clip vertical overflow explicitly. overflow-x:auto alone makes overflow-y compute to 'auto', so a
+       horizontal-overflow (e.g. revealing the count-in 4|8 + entry) reserves a HORIZONTAL scrollbar gutter
+       that grew the row's height even though its children are all 30px (user report: "stays on one line,
+       row gets taller"). It's a one-line horizontal strip; nothing should ever scroll it vertically. */
+    overflow-y: hidden;
+    scrollbar-width: none;         /* Firefox — chevrons replace the scrollbar */
+    -ms-overflow-style: none;      /* old Edge */
+}
+.control-toolbar::-webkit-scrollbar { display: none; } /* Chromium/WebView2 */
+
+/* Pinned group — the transport PLUS the four playback-modifier icons (Loop/Count-in lead, Tempo/Pitch
+   trail). It sits in the wrap but NOT the scrolling pill row, so the transport stays on-screen. It
+   holds its natural width when it fits (flex-shrink yields only when it wouldn't); if it can't fit —
+   e.g. a narrow desktop window — min-width:0 + overflow-x lets it scroll internally rather than shove
+   the page wide or squeeze the pill row to nothing. padding-bottom matches the scrolling row so both
+   baselines line up. On phones the mobile rule below drops it to its own full-width row. */
+.control-toolbar-pinned {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+    overflow-y: hidden; /* horizontal strip only — never reserve a vertical scrollbar gutter (see .control-toolbar) */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.control-toolbar-pinned::-webkit-scrollbar { display: none; }
+
+/* Phones: one row can't hold the scroll area AND the pinned transport, so stack them. The wrap wraps,
+   and flex `order` puts the scroll row + its chevrons on top (order 1) and the transport on its own
+   row below (order 2) — the DOM order stays pinned-first for desktop. The between-them divider is
+   hidden here (the row break already separates them) and the transport centers on its row. */
+@media (max-width: 760px) {
+    .control-toolbar-wrap {
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .control-toolbar-scrollrow {
+        order: 1;
+        flex: 1 0 100%; /* full width on its own line so the chevrons + row keep the top row to themselves */
+    }
+    .control-toolbar-pinned {
+        order: 2;
+        flex: 1 0 100%;      /* full width on its own line */
+        justify-content: center;
+        padding-bottom: 0;   /* it's the bottom row now — no baseline to match above it */
+    }
+
+    /* PlaybackToolbar (the one WITH a pinned transport, below the wave): keep the WHOLE bar on ONE row
+       and SCROLL it horizontally instead of wrapping the mixer/edit icons onto a second line (user
+       request, 2026-07-11). The outer wrap becomes the single horizontal scroller; the pinned transport
+       and the edit-tools row sit inline and flow off the right edge, reachable by swiping. No chevrons
+       for now (JS ones hidden below). */
+    .control-toolbar-wrap:has(.control-toolbar-pinned) {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden; /* horizontal strip — a vertical scrollbar gutter grew the row on the phone (user report) */
+        scrollbar-width: none;      /* Firefox */
+        -ms-overflow-style: none;   /* old Edge */
+    }
+    .control-toolbar-wrap:has(.control-toolbar-pinned)::-webkit-scrollbar { display: none; }
+    /* Undo the full-width stacking for this bar: pinned + scroll row are inline, natural width. */
+    .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
+        order: 1;
+        flex: 0 0 auto;
+        justify-content: flex-start;
+    }
+    .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-scrollrow {
+        order: 2;
+        flex: 0 0 auto;
+    }
+    /* The inner edit-tools row no longer scrolls on its own (the outer wrap does) — let it size to its
+       content so it contributes width to the single scroller. */
+    .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar {
+        overflow-x: visible;
+        flex: 0 0 auto;
+    }
+    /* No chevrons on this bar for now (user request) — the swipe scroll replaces them. */
+    .control-toolbar-wrap:has(.control-toolbar-pinned) .toolbar-scroll-chevron {
+        display: none;
+    }
+}
+
+/* Playback toolbar mobile: keep the WHOLE bar on ONE row and SCROLL it sideways (user request
+   2026-07-13). Transport (pinned) + count-in + tools flow inline and swipe off the right edge — no
+   stacking, no wrapping. The outer wrap is the single horizontal scroller; the inner pieces size to
+   content. No chevrons (swipe replaces them). */
+@media (max-width: 760px) {
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden; /* horizontal strip only — the vertical scrollbar gutter grew the row height
+                               when the count-in settings overflowed it (user report, phone) */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned)::-webkit-scrollbar { display: none; }
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-pinned {
+        order: 1;
+        flex: 0 0 auto;
+        justify-content: flex-start;
+        overflow-x: visible;   /* it's part of the outer scroller now */
+    }
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar-scrollrow {
+        order: 2;
+        flex: 0 0 auto;
+    }
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .control-toolbar {
+        flex: 0 0 auto;
+        overflow-x: visible;   /* the outer wrap scrolls; the inner row sizes to content */
+    }
+    .studio-console .control-toolbar-wrap:has(.control-toolbar-pinned) .toolbar-scroll-chevron {
+        display: none;
+    }
+}
+
+/* Left/right scroll chevrons — shown only when there's more to scroll that way (JS toggles .hidden). */
+.toolbar-scroll-chevron {
+    flex: 0 0 auto;
+    align-self: center;
+    /* The scroll row carries 4px padding-bottom; match it here so the chevron centers on the same
+       visual height as the pills instead of sitting low (BUGS.md #9, visible on iPhone). */
+    margin-bottom: 4px;
+    -webkit-appearance: none; /* iOS WebKit's default button chrome skews the glyph off-center */
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 30px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.toolbar-scroll-chevron:hover { border-color: var(--accent); }
+/* display:none (not visibility:hidden) so a chevron that isn't needed reserves NO space — this lets an
+   empty edit-tools scroll row collapse to nothing instead of leaving a blank chevron-height band under
+   the transport on mobile (user request, 2026-07-10). */
+.toolbar-scroll-chevron.hidden { display: none; }
+
+.toolbar-pill {
+    flex: 0 0 auto;
+}
+
+/* The transport buttons sit inline in the toolbar (no separate .waveform-transport wrapper there),
+   whether in the scrolling row or the pinned group — keep them at natural width in both. */
+.control-toolbar .wf-transport,
+.control-toolbar-pinned .wf-transport {
+    flex: 0 0 auto;
+}
+
+.pill-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.pill-head:hover:not(:disabled) {
+    border-color: var(--accent);
+}
+
+.pill-head:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.pill-head:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pill-label {
+    color: var(--muted);
+}
+
+.pill-value {
+    color: var(--accent-2);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Expanded: the chip squares off into a small panel with the full control below it. */
+.toolbar-pill.expanded .pill-head {
+    border-radius: 8px 8px 0 0;
+    border-bottom-color: transparent;
+    background: var(--panel);
+}
+
+.pill-body {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 0 8px 8px 8px;
+}
+
+.pill-body input[type="range"] {
+    width: 150px;
+}
+
+.pill-body .check-row {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.pill-body .hint {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* Count-in entry label ("enter on"), used inline on the count-in row's settings expander. */
+.countin-lbl {
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* Segmented 4|8 toggle. Fixed 30px height so revealing it on the count-in row doesn't grow the row. */
+.seg {
+    display: inline-flex;
+    height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--muted);
+    background: var(--panel-2);
+    border: none;
+    border-right: 1px solid var(--line);
+    cursor: pointer;
+}
+
+.seg-btn:last-child { border-right: none; }
+.seg-btn:hover:not(:disabled) { color: var(--text); }
+.seg-btn.on { color: var(--bg); background: var(--accent-2); font-weight: 600; }
+.seg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pill-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    font-size: 11px;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.pill-close:hover {
+    color: var(--text);
+}
+
+/* Toolbar icon buttons (Loop, Count-in, Tempo, Pitch) — transport-family controls that open a
+   popover instead of expanding the row. The wrapper is the positioning context for that popover. */
+.toolbar-iconbtn {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+}
+
+/* The button itself reuses .wf-transport for the shared size/shape, then widens to fit the glyph +
+   its status readout. auto width keeps it snug: just the glyph when there's no status, glyph + value
+   when there is. */
+.toolbar-icon {
+    width: auto;
+    min-width: 34px;
+    gap: 5px;
+    padding: 0 9px;
+}
+
+/* The bottom-toolbar Mixer icon is a single glyph with no status text, so pin it to the exact
+   transport-button footprint (34px). flex:0 0 34px fixes the basis so flex can't grow it, and
+   overflow:hidden stops a wide (emoji) glyph from expanding the box past 34px and forcing a wrap —
+   it sits at the end of the scrolling edit-tools row (user request, 2026-07-10). */
+.toolbar-icon.mixer-icon {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    padding: 0;
+    gap: 0;
+    flex: 0 0 34px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.toolbar-icon.mixer-icon .toolbar-icon-glyph {
+    font-size: 15px;
+}
+
+/* The Record-take icon: a transport-sized record button. The ⏺ glyph shows the accent red at rest and
+   pulses red while recording, matching the classic record affordance (user request, 2026-07-10). */
+.toolbar-icon.record-icon {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    flex: 0 0 34px;
+}
+.toolbar-icon.record-icon .toolbar-icon-glyph { color: var(--accent); }
+.toolbar-icon.record-icon.recording {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+    animation: record-pulse 1.1s ease-in-out infinite;
+}
+.toolbar-icon.record-icon.recording .toolbar-icon-glyph { color: var(--accent); }
+@keyframes record-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+    50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .toolbar-icon.record-icon.recording { animation: none; }
+}
+
+.toolbar-icon-glyph {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* The live status beside the glyph, styled like the wave-area time readout (muted, tabular mono) so
+   it reads as a glanceable value, not a second control. */
+.toolbar-icon-status {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* Active state (e.g. Loop on): the glyph and its status take the warm accent, and a soft ring/glow
+   makes "on" obvious at a glance without a separate badge. */
+.toolbar-icon.active {
+    border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
+    background: color-mix(in srgb, var(--accent-2) 12%, var(--panel-2));
+}
+.toolbar-icon.active .toolbar-icon-glyph {
+    color: var(--accent-2);
+}
+.toolbar-icon.active .toolbar-icon-status {
+    color: var(--accent-2);
+}
+
+/* While the popover is open the button reads as pressed — accent border + panel fill tie it to the
+   floating panel below it. */
+.toolbar-iconbtn.open .toolbar-icon:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--panel);
+}
+
+/* The popover: a small floating panel pinned ABOVE the icon by JS (anchorPopover sets top/left).
+   position:fixed so the toolbar row's overflow can't clip it; the JS clamps it into the viewport and
+   closes it on scroll/resize (a fixed panel can't follow its icon). max-width keeps a wide slider from
+   shoving it off-screen. */
+.toolbar-icon-popover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+    max-width: min(280px, 90vw);
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* A little pointer connecting the popover to its icon — points DOWN when the panel sits above the icon
+   (the default), and flips UP when JS had to place the panel below (no room above). */
+.toolbar-icon-popover::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--accent);
+}
+.toolbar-icon-popover.flipped::after {
+    top: auto;
+    bottom: 100%;
+    border-top-color: transparent;
+    border-bottom-color: var(--accent);
+}
+
+.popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.popover-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* The popover's control row mirrors the pill body's layout (slider + hint, or the count-in stack). */
+.popover-body {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.popover-body input[type="range"] {
+    width: 150px;
+}
+/* Multi-control popovers (Pitch: coarse semitones + fine cents) stack their rows vertically —
+   the default row layout above is only right for a single value·slider·hint control. */
+.popover-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+.popover-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.popover-body .check-row {
+    margin: 0;
+    white-space: nowrap;
+}
+.popover-body .hint {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+/* The live tempo/pitch value in the popover — updates as the slider drags. */
+.popover-body .pop-value {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-2);
+    min-width: 44px;
+    white-space: nowrap;
+}
+
+.waveform-ruler {
+    position: relative;
+    height: 16px;
+    margin-bottom: 6px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.waveform-ruler .tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+}
+
+/* Waveform section lane */
+.waveform-lane {
+    position: relative;
+    height: 24px;
+    margin-bottom: 6px;
+}
+
+/* Positioned wrapper (carries the left/width the section occupies); holds the section button and,
+   in edit mode, a sibling delete button. */
+.wf-section-wrap {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+}
+
+.wf-section {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: filter .12s ease, transform .12s ease;
+}
+
+.wf-section:hover { filter: brightness(1.18); transform: translateY(-1px); }
+.wf-section .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.wf-section .lbl { overflow: hidden; text-overflow: ellipsis; }
+
+/* In-lane "back to full track" control, shown left of the section label only when zoomed to a part. */
+.wf-section-back {
+    flex: none;
+    align-self: stretch;
+    margin-right: 3px;
+    padding: 0 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    cursor: pointer;
+}
+.wf-section-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Inline section rename box: fills the section block's slot while editing (double-click the label). */
+.wf-section-name-edit {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--accent-2);
+    border-radius: 5px;
+    outline: none;
+}
+
+/* Section-edit mode: the × delete button beside each block, and the toggle bar under the waveform. */
+.wf-section-del {
+    flex: none;
+    margin-left: 2px;
+    padding: 0 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--muted);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+.wf-section-del:hover { color: #fff; background: var(--danger, #c0524a); border-color: var(--danger, #c0524a); }
+
+/* Direct on/off toggle button living in the ControlToolbar (e.g. "Edit sections"). Matches the pill
+   chip shape; the .on state uses the accent to read as active at a glance. */
+.toolbar-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.toolbar-toggle:hover:not(:disabled) { border-color: var(--accent); }
+/* Disabled toolbar buttons (e.g. "Show all sections" at full zoom, Undo/Redo with no history): dim +
+   no-hover so a control that stays PRESENT-but-inactive reads clearly as unavailable, without the
+   toolbar reflowing as it would if the button were hidden (user request 2026-07-12). */
+.toolbar-toggle:disabled { opacity: 0.45; cursor: default; }
+.toolbar-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The web add-song control is a <label> wrapping a hidden <input type=file> so the tap on the label
+   natively opens the file dialog (iOS Safari authorizes it; a programmatic input.click() after awaits
+   would not). A <label> can't be :disabled, so recording locks it via aria-disabled. */
+.add-song-label { -webkit-appearance: none; appearance: none; }
+.add-song-label[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.add-song-label:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Hide an element visually but keep it in the a11y tree + clickable via its <label> (the file input). */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.toolbar-toggle.mixer-toggle {
+    font-weight: 600;
+}
+
+.toolbar-toggle.mixer-toggle.active-state:not(.on) {
+    color: var(--accent-2);
+    border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 12%, transparent);
+}
+
+/* Stem-set actions (Re-split / Delete) live behind a chevron next to the stem dropdown. The chevron
+   is a normal inline toolbar item; when open, the action buttons render as an overlay that floats to
+   the right, over whatever follows in the bar, so expanding them doesn't reflow the toolbar. */
+.toolbar-stem-actions {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+}
+.stem-actions-chevron {
+    /* Rotate the ▸ to ▾ feel when open via a subtle transform; keeps one glyph in markup. */
+    transition: transform 0.12s ease;
+}
+.toolbar-stem-actions.open .stem-actions-chevron { transform: none; }
+.stem-actions-overlay {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 6px);
+    transform: translateY(-50%);
+    z-index: 5;
+    display: inline-flex;
+    gap: 6px;
+    padding: 4px 6px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+}
+
+/* ---- Setlist editor: the wide panel dropped in below the toolbar (opened from the Setlist
+   dropdown's "Edit setlists…" option). A normal in-flow block — not a floating overlay — so it
+   reflows cleanly on small screens instead of clipping. Two columns on desktop; stacks at 760px. */
+.setlist-editor {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+}
+
+.setlist-editor-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.setlist-editor-close {
+    margin-left: auto;
+    min-width: 40px;
+    min-height: 40px;
+}
+
+.setlist-name-input {
+    flex: 1 1 180px;
+    min-width: 0;
+    height: 40px;
+    padding: 0 10px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--accent-2);
+    border-radius: 6px;
+    outline: none;
+}
+
+.setlist-editor-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.setlist-column h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.setlist-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+/* One song row: index · title · actions. min-height 44px keeps the whole row a comfortable tap
+   target; the buttons themselves are ≥40px so up/down/remove work with thumbs, not just cursors. */
+.setlist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 2px 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.setlist-row button {
+    flex: none;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.setlist-row button:hover:not(:disabled) { border-color: var(--accent); }
+.setlist-row button:disabled { opacity: 0.35; cursor: default; }
+.setlist-row button.danger:hover:not(:disabled) { color: #fff; background: var(--danger, #c0524a); border-color: var(--danger, #c0524a); }
+
+.setlist-index {
+    flex: none;
+    min-width: 22px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.setlist-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Mobile: the two columns stack (matches the app-wide 760px breakpoint used by the mixer/tables). */
+@media (max-width: 760px) {
+    .setlist-editor-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Inline dropdown in the toolbar (Song, Source) — a chip-shaped container around a bare <select>.
+   align-items: stretch forces the native <select> to the wrapper's exact 30px instead of its own,
+   taller intrinsic height, which otherwise left the dropdowns sitting lower than the round buttons. */
+.toolbar-select {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: stretch;
+    height: 30px;
+    max-width: 220px;
+}
+.toolbar-select select {
+    height: 30px;
+    max-width: 220px;
+    padding: 0 10px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1;
+    vertical-align: top;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    cursor: pointer;
+}
+.toolbar-select select:hover:not(:disabled) { border-color: var(--accent); }
+
+.toolbar-toggle.on {
+    color: var(--bg);
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+    font-weight: 600;
+}
+
+/* Recording in progress — red + a gentle pulse so it's unmistakable a take is being captured. */
+.toolbar-toggle.recording {
+    color: #fff;
+    background: var(--danger, #c0524a);
+    border-color: var(--danger, #c0524a);
+    font-weight: 600;
+    animation: toolbar-rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes toolbar-rec-pulse { 50% { opacity: 0.65; } }
+@media (prefers-reduced-motion: reduce) {
+    .toolbar-toggle.recording { animation: none; }
+}
+
+.wf-section.ready     { background: color-mix(in srgb, #8ee3a2 14%, var(--panel)); border-color: color-mix(in srgb, #8ee3a2 45%, transparent); }
+.wf-section.ready .dot { background: #8ee3a2; }
+.wf-section.probably  { background: color-mix(in srgb, #7fb4ff 14%, var(--panel)); border-color: color-mix(in srgb, #7fb4ff 45%, transparent); }
+.wf-section.probably .dot { background: #7fb4ff; }
+.wf-section.needswork { background: color-mix(in srgb, #f0c674 14%, var(--panel)); border-color: color-mix(in srgb, #f0c674 45%, transparent); }
+.wf-section.needswork .dot { background: #f0c674; }
+.wf-section.notyet    { background: color-mix(in srgb, #e07a7a 14%, var(--panel)); border-color: color-mix(in srgb, #e07a7a 45%, transparent); }
+.wf-section.notyet .dot { background: #e07a7a; }
+
+.wf-section.selected { outline: 2px solid var(--loop-edge); outline-offset: -1px; }
+
+.waveform-box:focus-visible {
+    outline: 2px solid var(--accent-2);
+    outline-offset: 2px;
+}
+
+kbd {
+    font-family: ui-monospace, Consolas, monospace;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.85em;
+}
+
+/* Bulk preparation (Library page, BulkLibraryPreparationPlan.md §3) */
+.prep-panel { border: 1px solid var(--border, #444); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.prep-panel h3 { margin: 0 0 0.25rem; }
+.prep-panel label { display: flex; align-items: center; gap: 0.4rem; }
+.prep-summary { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.92em; }
+.prep-actions { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+.prep-results { display: flex; flex-direction: column; gap: 0.25rem; max-height: 20rem; overflow-y: auto; }
+.library-row > input[type="checkbox"] { margin-right: 0.5rem; }
+.prep-detail { white-space: normal; overflow: visible; text-overflow: clip; }
+.prep-warn { color: var(--warn, #d08700); font-weight: 600; }
+.prep-recent { margin: 0.75rem 0; }
+.prep-recent summary { cursor: pointer; padding: 0.35rem 0; }
+
+/* Metronome practice panel (MetronomePracticePlan.md) — the click-only surface that replaces the
+   waveform in metronome mode. A calm, centered "beat panel": beat dots on top, big tempo readout,
+   meter controls, then a prominent play/stop. Reuses the app's --accent (orange) / --accent-2 (gold)
+   tokens so it reads as part of the Console, not a bolt-on. */
+.metronome-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.1rem;
+    padding: 1.75rem 1rem 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+/* The beat dots. Each is a button (tap to toggle accent); the dot itself is the inner span so the hit
+   target stays comfortable without inflating the visual dot. */
+.metronome-beats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.85rem;
+}
+
+.metronome-beat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.metronome-beat:disabled { cursor: default; }
+
+.metronome-beat-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--wave-unplayed);
+    border: 2px solid transparent;
+    transition: transform 90ms ease-out, background-color 90ms ease-out, box-shadow 90ms ease-out;
+}
+
+/* Accented beats read brighter/larger; the downbeat is the brightest (gold), matching the loop-edge
+   accent used elsewhere. Un-accented beats stay muted so the meter's shape is glanceable. */
+.metronome-beat.accented .metronome-beat-dot {
+    background: var(--accent);
+    width: 26px;
+    height: 26px;
+}
+
+.metronome-beat.downbeat .metronome-beat-dot {
+    background: var(--accent-2);
+}
+
+.metronome-beat:not(:disabled):hover .metronome-beat-dot {
+    border-color: var(--accent-2);
+}
+
+.metronome-beat:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+/* The currently-sounding beat (Phase 4 live beat): a pulse ring so the eye can lock to the click. */
+.metronome-beat.current .metronome-beat-dot {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 4px rgba(228, 76, 42, 0.28);
+}
+
+.metronome-beat.current.downbeat .metronome-beat-dot {
+    box-shadow: 0 0 0 4px rgba(240, 195, 90, 0.32);
+}
+
+.metronome-tempo {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.metronome-note {
+    font-size: 1.6rem;
+    color: var(--muted);
+}
+
+.metronome-bpm {
+    width: 4.5ch;
+    font-size: 2.4rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--line);
+    padding: 0 0.15rem;
+}
+
+.metronome-bpm:focus-visible {
+    outline: none;
+    border-bottom-color: var(--accent);
+}
+
+.metronome-bpm:disabled { color: var(--muted); }
+
+.metronome-bpm-unit {
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+}
+
+.metronome-tempo-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.metronome-tempo-step {
+    display: inline-grid;
+    grid-template-columns: 34px 34px 34px;
+    align-items: center;
+    overflow: hidden;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.metronome-step-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 32px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.metronome-step-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.06); }
+.metronome-step-btn:disabled { color: var(--muted); cursor: default; }
+.metronome-step-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.metronome-step-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+}
+
+.metronome-meter {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.metronome-meter-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.metronome-meter-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.metronome-beats-input {
+    width: 3.5ch;
+    font-size: 1rem;
+    text-align: center;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.15rem 0.25rem;
+}
+
+.metronome-beats-input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.metronome-tempo-source {
+    font-size: 0.8rem;
+}
+
+.metronome-timer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.metronome-timer-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.metronome-timer-input {
+    width: 4ch;
+    font-size: 1rem;
+    text-align: center;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.15rem 0.25rem;
+}
+
+.metronome-timer-input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.metronome-timer-input:disabled { color: var(--muted); }
+
+.metronome-timer-status {
+    min-width: 8rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.metronome-timer-status.on {
+    color: var(--accent-2);
+}
+
+.metronome-transport {
+    margin-top: 0.25rem;
+}
+
+.metronome-play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    font-size: 1.6rem;
+    color: var(--accent);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: border-color 90ms ease-out, color 90ms ease-out;
+}
+
+.metronome-play:hover { border-color: var(--accent); }
+
+.metronome-play:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.metronome-play.playing { color: var(--accent-2); }
+
+.metronome-footer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+
+/* Metronome panel — Log-rep affordance in the footer (MetronomePracticePlan.md §E). */
+.metronome-log {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.metronome-log-clean {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.metronome-log-hint {
+    margin: 0;
+    text-align: center;
+}
+
+.metronome-log-message {
+    margin: 0;
+    text-align: center;
+}
+
+/* ---- Guitar tuner (docs/08_Audio_Engine/GuitarTunerPlan.md) ---- */
+:root {
+    --tune-good: #6bbf59;
+    --tune-off: #d98a3d;
+    --tune-bad: #c0524a;
+}
+
+.tuner-modes {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.tuner-modes button {
+    flex: 1;
+    padding: 0.55rem;
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tuner-modes button.active {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--panel);
+}
+
+/* The shared tuner component (used by the /tuner page and the Console modal). Its own vertical rhythm so
+   it sits correctly whether inside a .panel (page) or a modal body. */
+.tuner-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.tuner-view .tuner-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.tuner-live,
+.tuner-strum {
+    text-align: center;
+}
+
+.tuner-hint {
+    color: var(--muted);
+    text-align: center;
+}
+
+.tuner-note {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0.5rem 0;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.tuner-note.in-tune { color: var(--tune-good); }
+.tuner-note.flat,
+.tuner-note.sharp { color: var(--tune-off); }
+
+/* Peg-turn arrow (↑ tune up / ↓ tune down / ✓ in tune) beside the note — same colour as the note. */
+.tuner-arrow { font-weight: 700; }
+.tuner-string-cents .tuner-arrow { font-size: 0.9em; margin-right: 0.15rem; }
+
+/* One-shot green flash when a string lands in tune (paired with the haptic). The @key re-mounts this
+   span so the animation replays on each in-tune entry; it fades out and leaves nothing behind. */
+.tuner-flash {
+    position: absolute;
+    inset: -0.25rem -0.75rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--tune-good) 45%, transparent);
+    pointer-events: none;
+    animation: tuner-flash 0.5s ease-out forwards;
+}
+@keyframes tuner-flash {
+    from { opacity: 0.8; }
+    to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .tuner-flash { animation-duration: 0.01s; }
+}
+/* In a strum row (clipped, rounded) the flash fills the row rather than bleeding outward like the note's. */
+.tuner-string-live .tuner-flash { inset: 0; border-radius: 0; }
+
+/* Chromatic toggle (snap to any note vs the tuning's strings). */
+.tuner-chromatic {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+/* The checkbox sizing is fixed globally now (input[type=checkbox] reset); nothing tuner-specific
+   needed beyond the flex layout above. */
+
+.tuner-needle {
+    max-width: 460px;
+    margin: 0.5rem auto 0;
+}
+
+.tuner-needle-track {
+    position: relative;
+    height: 44px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tuner-needle-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--tune-good);
+    transform: translateX(-50%);
+    opacity: 0.8;
+}
+
+.tuner-needle-pointer {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform: translateX(-50%);
+    transition: left 90ms linear;
+}
+
+.tuner-needle-labels {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+.tuner-cents {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    margin: 0.75rem 0;
+    min-height: 2.5rem;
+}
+
+.tuner-cents strong {
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tuner-cents span { color: var(--muted); }
+
+.tuner-strings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 1rem 0;
+}
+
+.tuner-string {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 6px;
+}
+
+.tuner-string-label {
+    font-weight: 700;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tuner-string-status {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.25;
+    text-align: right;
+}
+/* Per-string strum readout: the detected note+Hz on top, the cents-off word below (user request). */
+.tuner-string-pitch { font-weight: 600; }
+.tuner-string-cents { font-size: 0.85rem; }
+
+.tuner-string.in-tune { border-left-color: var(--tune-good); }
+.tuner-string.in-tune .tuner-string-status { color: var(--tune-good); }
+.tuner-string.flat,
+.tuner-string.sharp { border-left-color: var(--tune-off); }
+.tuner-string.flat .tuner-string-status,
+.tuner-string.sharp .tuner-string-status { color: var(--tune-off); }
+.tuner-string.undetected { border-left-color: var(--line); opacity: 0.7; }
+
+/* The in-tune tolerance band — a soft green zone straddling centre so "close enough" is visible, not a
+   hairline (user request 2026-07-13). Sized inline (±InTuneCents %) so it tracks the In-tune knob. */
+.tuner-needle-band,
+.tuner-string-band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--tune-good) 22%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--tune-good) 45%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--tune-good) 45%, transparent);
+    pointer-events: none;
+}
+
+/* Tuner tuning-feel knobs (Smoothing / Sensitivity / In-tune) — the same rotary Knob as the mixer. */
+.tuner-knobs {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}
+.tuner-knob {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+.tuner-knob-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+/* Continuous Strum Check: a row per string with a live moving pitch bar (same idea as the single-note
+   needle), replacing the one-shot text readout (user request 2026-07-13). */
+.tuner-string-live {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 5rem;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.9rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 6px;
+    overflow: hidden; /* clip the flash overlay to the row's rounded corners */
+}
+.tuner-string-live.in-tune { border-left-color: var(--tune-good); }
+.tuner-string-live.flat,
+.tuner-string-live.sharp { border-left-color: var(--tune-off); }
+.tuner-string-live.undetected { border-left-color: var(--line); opacity: 0.65; }
+
+.tuner-string-track {
+    position: relative;
+    height: 26px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.tuner-string-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--tune-good);
+    transform: translateX(-50%);
+    opacity: 0.8;
+}
+.tuner-string-pointer {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform: translateX(-50%);
+    transition: left 90ms linear;
+}
+.tuner-string-live.in-tune .tuner-string-pointer { background: var(--tune-good); }
+
+.tuner-string-readout {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+.tuner-string-readout .tuner-string-cents { font-weight: 600; font-size: 0.95rem; }
+.tuner-string-hz { font-size: 0.75rem; color: var(--muted); }
+.tuner-string-live.in-tune .tuner-string-readout { color: var(--tune-good); }
+
+/* Click density picker beside the Generate button (ClickDensityDiscoverabilityPlan.md) — a compact
+   select so "2× time"/"½ time" is reachable at generate, not only in the mixer's section editor. */
+.click-density-pick {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4rem;
+}
+.click-density-pick select {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.35rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+/* Multi-row playback toolbar (ConsoleToolbarRowsPlan.md): the transport ControlToolbar, then the
+   sound/count-in/loop/tools rows stacked below it — each always visible, no popovers. */
+.playback-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* A row of inline controls that SCROLLS sideways rather than wrapping (user request 2026-07-13 — the
+   wrapped rows looked broken on a phone). Native touch-scroll on iOS; scrollbar hidden. Shared by the
+   sound row and the count-in row. */
+.sound-row,
+.toolbar-scrollrow-inline {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;              /* Firefox */
+    padding-bottom: 2px;                /* room so the focus ring isn't clipped by overflow */
+}
+.sound-row::-webkit-scrollbar,
+.toolbar-scrollrow-inline::-webkit-scrollbar { display: none; } /* WebKit/Blink */
+/* Children must not shrink or the steppers collapse when the row overflows. */
+.sound-row > *,
+.toolbar-scrollrow-inline > * { flex: 0 0 auto; }
+
+/* A [−] value [+] stepper group, styled from the transport-button family (--panel-2 / --line). */
+.stepper {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--panel-2);
+}
+.stepper-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    padding: 0 8px;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+.stepper-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.06); }
+.stepper-btn:disabled { color: var(--muted); cursor: default; }
+.stepper-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* The centered readout doubles as the reset button (tap to reset). Its parts sit on ONE line
+   (e.g. "1.00x  120 BPM") — never stacked (user request 2026-07-13). */
+.stepper-readout {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.stepper-readout:not(:disabled):hover { background: rgba(255, 255, 255, 0.04); }
+.stepper-readout:disabled { cursor: default; }
+.stepper-readout:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.stepper-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+}
+.stepper-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+
+/* The "¢" fine-tune toggle sits after the pitch stepper; tints when the inline cents strip is open. */
+.stepper-fine {
+    min-width: 30px;
+    padding: 0 6px;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.stepper-fine.on { color: var(--accent-2); border-color: var(--accent-2); }
+.stepper-fine:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Inline cents strip (revealed by the ¢ toggle) — a small labeled slider, no popover. Fixed 30px
+   height so revealing it doesn't grow the sound row. */
+.fine-cents {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    gap: 6px;
+}
+.fine-cents .fine-label {
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 42px;
+    text-align: right;
+}
+.fine-cents input[type="range"] {
+    width: 110px;
+    height: 30px;                      /* keep the slider within the row height */
+    margin: 0;
+}
+
+/* Count-in row: a primary on/off toggle chip carrying a live summary, then a ⚙ that reveals the
+   set-once settings (4/8 + entry) inline. Height matches the transport buttons so the row doesn't grow;
+   a stable min-width + constant font-weight keep it from JUMPING as the label changes on toggle. */
+.countin-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 30px;                      /* match .wf-transport so the row height is stable */
+    min-width: 96px;                   /* hold width across "Count-in: 4" / ": off" so it doesn't jump */
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;                  /* constant weight — bold-on-toggle was resizing the pill */
+    color: var(--muted);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;              /* pill — reads as a toggle */
+    cursor: pointer;
+    white-space: nowrap;
+}
+.countin-toggle.on {
+    color: var(--bg);
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+}
+.countin-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.countin-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.countin-glyph { font-size: 14px; }
+.countin-toggle:not(.on) .countin-glyph { color: var(--accent-2); }
+
+.countin-gear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;                      /* match the toggle + transport buttons */
+    min-width: 32px;
+    padding: 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.countin-gear.on { color: var(--accent); border-color: var(--accent); }
+.countin-gear:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.countin-settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    max-height: 30px;
+    white-space: nowrap;
+}
+
+.countin-entry {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;              /* pin to the row height so revealing it can't grow the toolbar band */
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+.countin-entry select {
+    height: 30px;                      /* match the row so revealing it doesn't grow the row height */
+    min-height: 0;
+    max-height: 30px;
+    min-width: 0;
+    /* Border-box + stripped native appearance so the 30px is AUTHORITATIVE. Without these, iOS WebKit's
+       native <select> chrome renders taller than 30px, and because the toolbar wrap uses align-items:
+       stretch it dragged the whole toolbar band taller when the count-in settings were revealed (user
+       report). box-sizing folds the border into the 30px; appearance:none drops the UA control height. */
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    line-height: normal;
+    font-size: 12px;
+    padding: 0 22px 0 8px;             /* room for our own caret on the right */
+    color: var(--text);
+    background: var(--panel-2);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+/* Saved-loops dropdown (user request 2026-07-13): one button that expands a list, instead of a chip
+   per loop. The list overlays below the button (position:absolute) so it doesn't grow the loop row. */
+.saved-loops-menu {
+    position: relative;
+    display: inline-flex;
+}
+.saved-loops-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.saved-loops-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+.saved-loops-item:hover:not(:disabled) { background: var(--panel-2); }
+.saved-loops-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.saved-loops-name { font-weight: 600; }
+.saved-loops-time { font-size: 11px; color: var(--muted); }
+
+.marks-menu {
+    position: relative;
+    display: inline-flex;
+}
+.marks-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 260px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.marks-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+    align-items: center;
+    padding: 4px;
+    border-radius: 7px;
+}
+.marks-item:hover { background: var(--panel-2); }
+.marks-jump {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 6px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+}
+.marks-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.marks-time { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.marks-chip,
+.marks-delete {
+    height: 24px;
+    padding: 0 8px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.marks-chip.on { color: var(--text); border-color: var(--skip-mark-edge); background: rgba(255, 138, 91, 0.18); }
+.marks-delete:hover:not(:disabled) { color: #fff; border-color: var(--danger, #c0524a); background: var(--danger, #c0524a); }
+.mark-name-input {
+    flex: 0 0 auto;
+    width: 132px;
+    height: 30px;
+    padding: 0 10px;
+    color: var(--text);
+    background: #0d1012;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* The loop row's scroll container clips vertical overflow (overflow-x:auto implies overflow-y:auto),
+   which would cut off the saved-loops dropdown. Where a menu is open, don't clip vertically — the
+   dropdown overlays the empty space below the row. (Mobile already sets overflow-x:visible.) */
+.control-toolbar:has(.saved-loops-list),
+.control-toolbar:has(.marks-list) {
+    overflow: visible;
+}
+/* On phones the loop row is a PINNED toolbar, so the OUTER wrap (not the inner .control-toolbar) is the
+   horizontal scroller with overflow-x:auto — which computes overflow-y:auto too and clips the dropdown
+   vertically, so tapping "Loops" showed nothing (user report). When the saved-loops list is open, stop
+   the wrap AND the scroll row clipping so the menu can overlay below the row. It's a transient popover;
+   losing the swipe-scroll while it's open is fine (and it closes on selection). The .studio-console
+   prefix matches the specificity of the mobile overflow-x:auto rules (which carry it) so this wins. */
+.studio-console .control-toolbar-wrap:has(.saved-loops-list),
+.studio-console .control-toolbar-scrollrow:has(.saved-loops-list),
+.studio-console .control-toolbar-pinned:has(.saved-loops-list),
+.studio-console .control-toolbar-wrap:has(.marks-list),
+.studio-console .control-toolbar-scrollrow:has(.marks-list),
+.studio-console .control-toolbar-pinned:has(.marks-list),
+.control-toolbar-wrap:has(.saved-loops-list),
+.control-toolbar-scrollrow:has(.saved-loops-list),
+.control-toolbar-pinned:has(.saved-loops-list),
+.control-toolbar-wrap:has(.marks-list),
+.control-toolbar-scrollrow:has(.marks-list),
+.control-toolbar-pinned:has(.marks-list) {
+    overflow: visible;
+}
+
+/* ── Session mode (SessionModePlan.md, option A) ─────────────────────────────────────────────────
+   A full-viewport keep-awake shell over the Console for a phone on a stand during rehearsal. Fixed
+   overlay (covers the Console without gating its render); big high-contrast touch targets, glanceable
+   from a distance. Uses the app's own dark tokens (the app is dark-only). Honors the safe-area insets
+   so the Exit control and caveat clear a notch / home indicator on a phone. */
+.session-mode {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg);
+    color: var(--text);
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    gap: 24px;
+    overflow: hidden;
+    /* Don't let a long press select the big numerals / labels while tapping the transport. */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.session-mode-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.session-mode-badge {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 12px;
+}
+.session-mode-exit {
+    font-size: 16px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 16px;
+    min-height: 44px; /* comfortable touch target */
+    cursor: pointer;
+}
+.session-mode-exit:hover { border-color: var(--accent); color: var(--accent); }
+.session-mode-exit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The middle block grows to center the current song + big timer between the top bar and controls. */
+.session-mode-body {
+    flex: 1 1 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    min-height: 0;
+    text-align: center;
+}
+
+.session-now { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.session-now-label,
+.session-next-label {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.session-now-title {
+    font-size: clamp(28px, 8vw, 56px);
+    font-weight: 700;
+    line-height: 1.1;
+    text-wrap: balance;
+    max-width: 90vw;
+}
+
+/* Big monospaced-digit timer, glanceable from across a room. */
+.session-timer {
+    font-size: clamp(56px, 20vw, 140px);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-2);
+}
+/* During the count-in pre-roll, the timer slot shows a pulsing "Count-in…" instead of a stale 0:00. */
+.session-countin {
+    font-size: clamp(40px, 14vw, 96px);
+    font-weight: 800;
+    color: var(--accent);
+    animation: session-countin-pulse 0.9s ease-in-out infinite;
+}
+@keyframes session-countin-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .session-countin { animation: none; }
+}
+
+.session-next { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.session-next-title {
+    font-size: clamp(18px, 4.5vw, 28px);
+    font-weight: 600;
+    color: var(--muted);
+    text-wrap: balance;
+    max-width: 90vw;
+}
+
+/* The transport row: prev / big play-pause / next. Big, spaced, thumb-friendly. */
+.session-mode-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 6vw, 48px);
+    width: 100%;
+}
+.session-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+}
+.session-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.session-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.session-btn:disabled { opacity: 0.4; cursor: default; }
+.session-btn-nav {
+    width: clamp(64px, 18vw, 96px);
+    height: clamp(64px, 18vw, 96px);
+    font-size: clamp(28px, 8vw, 40px);
+}
+.session-btn-play {
+    width: clamp(96px, 28vw, 160px);
+    height: clamp(96px, 28vw, 160px);
+    font-size: clamp(44px, 13vw, 72px);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.session-btn-play:hover:not(:disabled) {
+    color: #fff;
+    background: color-mix(in srgb, var(--accent) 86%, #fff);
+    border-color: color-mix(in srgb, var(--accent) 86%, #fff);
+}
+
+/* Set controls (record toggle + play/stop), secondary to the per-song transport above it. Stacks the
+   toggle above the play button. */
+.session-mode-set {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+}
+.session-set-btn {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 28px;
+    min-height: 52px;
+    cursor: pointer;
+}
+.session-set-btn:hover:not(:disabled) { border-color: var(--accent-2); color: var(--accent-2); }
+.session-set-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.session-set-btn:disabled { opacity: 0.4; cursor: default; }
+.session-set-btn.on { color: var(--bg); background: var(--accent-2); border-color: var(--accent-2); }
+
+/* Record-set state, surfaced (never hidden) in the shell. Badge in the top bar; pulses red while a
+   take is actively rolling (.live), steady otherwise. */
+.session-rec-badge {
+    margin-right: auto; /* sits just after the "Session" badge, left of the Exit button */
+    margin-left: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--danger, #c0524a);
+    border: 1px solid var(--danger, #c0524a);
+    border-radius: 999px;
+    padding: 4px 12px;
+}
+.session-rec-badge.live { animation: session-rec-pulse 1s ease-in-out infinite; }
+@keyframes session-rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .session-rec-badge.live { animation: none; }
+}
+
+/* Per-song status line ("Take saved — next song…", "…has no stems — playing, not recording"). */
+.session-status {
+    font-size: clamp(14px, 3.5vw, 18px);
+    color: var(--accent-2);
+    text-align: center;
+    max-width: 90vw;
+    text-wrap: balance;
+}
+
+/* "Record the set" toggle, above the Play-set button. Off = outlined; on = filled danger. */
+.session-rec-toggle {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 22px;
+    min-height: 48px;
+    cursor: pointer;
+}
+.session-rec-toggle:hover:not(:disabled) { border-color: var(--danger, #c0524a); color: var(--danger, #c0524a); }
+.session-rec-toggle:focus-visible { outline: 2px solid var(--danger, #c0524a); outline-offset: 2px; }
+.session-rec-toggle:disabled { opacity: 0.4; cursor: default; }
+.session-rec-toggle.on {
+    color: #fff;
+    background: var(--danger, #c0524a);
+    border-color: var(--danger, #c0524a);
+}
+
+/* Play button reflects that it will ALSO record when the toggle is on. */
+.session-set-btn.rec {
+    color: #fff;
+    background: var(--danger, #c0524a);
+    border-color: var(--danger, #c0524a);
+}
+.session-set-btn.rec:hover:not(:disabled) {
+    color: #fff;
+    background: color-mix(in srgb, var(--danger, #c0524a) 86%, #fff);
+    border-color: color-mix(in srgb, var(--danger, #c0524a) 86%, #fff);
+}
+
+/* The honest caveat, small and calm at the bottom (SessionModePlan.md "state it in the UI"). */
+.session-mode-caveat {
+    margin: 0;
+    max-width: 640px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--muted);
+}
