@@ -5,8 +5,8 @@
     <title>Mastery Studio</title>
     <script>
         (function () {
-            var repoBase = '/SRP/';
-            var devBase = '/SRP/masterystudio-dev/';
+            var repoBase = '/SRP/';                     // '/SRP/'
+            var previewParent = repoBase + 'masterystudio/'; // '/SRP/masterystudio/'
             var origin = window.location.origin;
             var path = window.location.pathname;
             var hash = window.location.hash || '';
@@ -18,9 +18,23 @@
                 window.location.replace(origin + base + '?/' + route.replace(/&/g, '~and~') + query + hash);
             }
 
-            if (path.indexOf(devBase) === 0) {
-                redirect(devBase, path.slice(devBase.length));
-                return;
+            // A deep link into a named preview: /SRP/masterystudio/<name>/<route...>. The app base is
+            // everything up to and including the <name> segment, derived from the URL - so this works for
+            // ANY preview name without listing them here.
+            if (path.indexOf(previewParent) === 0) {
+                var rest = path.slice(previewParent.length);   // '<name>/<route...>'
+                var slash = rest.indexOf('/');
+                if (slash > 0) {
+                    var previewBase = previewParent + rest.slice(0, slash) + '/';
+                    redirect(previewBase, rest.slice(slash + 1));
+                    return;
+                }
+                // '/SRP/masterystudio/<name>' with no trailing slash/route -> that preview's root.
+                if (rest.length > 0) {
+                    redirect(previewParent + rest + '/', '');
+                    return;
+                }
+                // Bare '/SRP/masterystudio/' -> fall through to the live root app.
             }
 
             if (path.indexOf(repoBase) === 0) {
