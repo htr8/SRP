@@ -3322,10 +3322,35 @@ kbd {
 
 .metronome-timer {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    gap: 0.55rem;
+}
+
+/* One interval editor ("Timer"/"Rest"): a label above a row of minutes + seconds unit-steppers. */
+.metronome-timer-block {
+    display: flex;
     flex-wrap: wrap;
-    gap: 0.65rem;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.3rem 0.5rem;
+}
+
+.metronome-timer-block > .metronome-meter-label {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* The minutes group and the seconds group sit side by side under the label. */
+.metronome-timer-unit {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 .metronome-timer-field {
@@ -3333,6 +3358,24 @@ kbd {
     align-items: center;
     gap: 0.4rem;
 }
+
+/* The auto-stop toggle row. */
+.metronome-timer-mode {
+    display: flex;
+    justify-content: center;
+}
+
+.metronome-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.metronome-toggle input { cursor: pointer; }
+.metronome-toggle input:disabled { cursor: default; }
 
 .metronome-timer-input {
     width: 4ch;
