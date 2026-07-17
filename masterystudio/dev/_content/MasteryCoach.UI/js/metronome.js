@@ -73,6 +73,40 @@ function parseAccents(pattern, beatsPerMeasure) {
     return set;
 }
 
+// Change the tempo of the ALREADY-RUNNING metronome without stopping it. The scheduler reads
+// state.secondsPerBeat every wake, so the new tempo takes effect on the next beat — no gap, no
+// beat-count reset. No-op if not running (the next start() will use the stored value instead).
+// Re-anchors the beat grid to the current instant so getCurrentBeat()/getGrid() stay coherent with
+// the new interval (otherwise the dot indicator would drift, having been computed from the old one).
+export function setTempo(bpm) {
+    if (!state.running || !state.ctx) return;
+    const spb = 60.0 / (bpm > 0 ? bpm : 120);
+    if (spb === state.secondsPerBeat) return;
+    const ctx = state.ctx;
+    // Preserve the phase within the current beat so the tempo change doesn't nudge the next click
+    // earlier/later than a listener expects: keep nextNoteTime, but re-anchor the grid so the
+    // shared-clock beat math (getCurrentBeat/getGrid) uses the new interval from here forward.
+    state.gridStartTime = ctx.currentTime;
+    state.beatIndex = 0;
+    // Reschedule the pending next beat relative to now using the new interval, unless one is already
+    // imminently scheduled (within the current lookahead) — in that case let it fire and apply the new
+    // interval to the beat after it, so we never double-fire or drop a click at the seam.
+    if (state.nextNoteTime > ctx.currentTime + SCHEDULE_AHEAD) {
+        state.nextNoteTime = ctx.currentTime + spb;
+    }
+    state.secondsPerBeat = spb;
+}
+
+// Change (or clear) the auto-stop time of the ALREADY-RUNNING metronome. runForSeconds null/0 clears
+// the timer (runs until stopped); a positive value stops that many seconds from NOW. No-op if not
+// running. Lets the user extend/shorten the timer live without restarting the click.
+export function setEndTime(runForSeconds) {
+    if (!state.running || !state.ctx) return;
+    state.endTime = runForSeconds != null && runForSeconds > 0
+        ? state.ctx.currentTime + runForSeconds
+        : null;
+}
+
 // bpm > 0; beatsPerMeasure >= 1; accentPattern like "1" or "1,3"; runForSeconds null = run until stop.
 export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) {
     stopInternal();
