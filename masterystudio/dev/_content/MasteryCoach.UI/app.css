@@ -3835,7 +3835,7 @@ kbd {
 
 .metronome-step-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) 66px;
     align-items: stretch;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.035);
@@ -3860,6 +3860,10 @@ kbd {
     background: transparent;
     border: none;
     cursor: pointer;
+}
+
+.metronome-step-load-edit {
+    cursor: default;
 }
 
 .metronome-step-number {
@@ -3887,6 +3891,10 @@ kbd {
     gap: 0.15rem;
 }
 
+.metronome-step-copy-edit {
+    gap: 0.22rem;
+}
+
 .metronome-step-copy strong,
 .metronome-step-copy span {
     min-width: 0;
@@ -3901,15 +3909,43 @@ kbd {
     font-size: 0.78rem;
 }
 
-.metronome-step-delete {
+.metronome-step-name-input {
+    min-width: 0;
+    width: 100%;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 6px;
+    padding: 0.28rem 0.38rem;
+}
+
+.metronome-step-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metronome-step-action {
     color: var(--muted);
     background: transparent;
     border: none;
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
 }
 
-.metronome-step-delete:hover {
+.metronome-step-action:first-child {
+    border-left: none;
+}
+
+.metronome-step-action:hover,
+.metronome-step-action.save {
+    color: #f6c23a;
+}
+
+.metronome-step-action.danger:hover {
     color: #ff7d6a;
 }
 
@@ -4247,7 +4283,7 @@ kbd {
     }
 
     .metronome-step-row {
-        grid-template-columns: minmax(0, 1fr) 34px;
+        grid-template-columns: minmax(0, 1fr) 54px;
     }
 
     .metronome-step-number {
@@ -4262,6 +4298,11 @@ kbd {
 
     .metronome-step-copy strong {
         font-size: 0.8rem;
+    }
+
+    .metronome-step-name-input {
+        font-size: 0.8rem;
+        padding: 0.18rem 0.28rem;
     }
 
     .metronome-step-copy span {
