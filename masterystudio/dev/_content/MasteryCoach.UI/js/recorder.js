@@ -20,6 +20,7 @@ import {
 const state = {
     stream: null,
     sourceNode: null,
+    gainNode: null,
     captureNode: null,
     chunks: [],        // Float32Array chunks from the worklet
     startCtxTime: null,
@@ -32,6 +33,15 @@ const state = {
     health: null,
     healthChannels: [],
 };
+
+function clampGainDb(gainDb) {
+    const value = Number(gainDb);
+    return Number.isFinite(value) ? Math.min(24, Math.max(0, value)) : 0;
+}
+
+function gainDbToLinear(gainDb) {
+    return Math.pow(10, clampGainDb(gainDb) / 20);
+}
 
 // navigator.mediaDevices is UNDEFINED in some WebView contexts (notably iOS WKWebView without a
 // secure context / when mic capture isn't available), so `navigator.mediaDevices.getUserMedia` threw
@@ -111,7 +121,7 @@ export async function listInputs() {
         .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
 }
 
-export async function start(deviceId) {
+export async function start(deviceId, inputGainDb = 0) {
     if (state.recording) return;
 
     const ctx = getSharedContext();
@@ -146,6 +156,8 @@ export async function start(deviceId) {
     resetHealth();
 
     state.sourceNode = ctx.createMediaStreamSource(state.stream);
+    state.gainNode = ctx.createGain();
+    state.gainNode.gain.value = gainDbToLinear(inputGainDb);
     state.captureNode = new AudioWorkletNode(ctx, 'capture-processor', {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -165,7 +177,7 @@ export async function start(deviceId) {
     // the engine prune the upstream capture branch as inaudible, so the worklet stops running.
     const silent = ctx.createGain();
     silent.gain.value = 0.00001;
-    state.sourceNode.connect(state.captureNode).connect(silent).connect(ctx.destination);
+    state.sourceNode.connect(state.gainNode).connect(state.captureNode).connect(silent).connect(ctx.destination);
     state.recording = true;
 }
 
@@ -203,6 +215,10 @@ export function stop() {
     if (state.sourceNode) {
         try { state.sourceNode.disconnect(); } catch { /* ignore */ }
         state.sourceNode = null;
+    }
+    if (state.gainNode) {
+        try { state.gainNode.disconnect(); } catch { /* ignore */ }
+        state.gainNode = null;
     }
     // Disconnect our graph nodes but DO NOT stop the stream's tracks — the shared mic stream stays alive
     // so the next record/calibrate reuses it without a fresh getUserMedia (no iOS re-prompt). The stream
@@ -285,6 +301,7 @@ const meter = {
     stream: null,
     analyser: null,
     ctxSrc: null,
+    gainNode: null,
     raf: 0,
     canvas: null,
     peakHold: 0,
@@ -293,16 +310,16 @@ const meter = {
     healthChannels: [],
 };
 
-export async function startInputMeter(canvas, deviceId) {
-    await startInputMonitor(canvas, deviceId);
+export async function startInputMeter(canvas, deviceId, inputGainDb = 0) {
+    await startInputMonitor(canvas, deviceId, inputGainDb);
 }
 
-export async function startMonitoring(deviceId) {
+export async function startMonitoring(deviceId, inputGainDb = 0) {
     if (state.recording) return;
-    await startInputMonitor(null, deviceId);
+    await startInputMonitor(null, deviceId, inputGainDb);
 }
 
-async function startInputMonitor(canvas, deviceId) {
+async function startInputMonitor(canvas, deviceId, inputGainDb = 0) {
     stopInputMeter(); // re-arm cleanly on device change
 
     // Generation token: getUserMedia can take seconds (permission prompt), during which another
@@ -322,9 +339,11 @@ async function startInputMonitor(canvas, deviceId) {
 
     meter.stream = stream;
     meter.ctxSrc = ctx.createMediaStreamSource(meter.stream);
+    meter.gainNode = ctx.createGain();
+    meter.gainNode.gain.value = gainDbToLinear(inputGainDb);
     meter.analyser = ctx.createAnalyser();
     meter.analyser.fftSize = 1024;
-    meter.ctxSrc.connect(meter.analyser); // analyser has no output — nothing reaches the speakers
+    meter.ctxSrc.connect(meter.gainNode).connect(meter.analyser); // analyser has no output — nothing reaches the speakers
     meter.canvas = canvas;
     meter.peakHold = 0;
     resetMeterHealth();
@@ -370,6 +389,7 @@ export function stopInputMeter() {
     meter.gen++; // invalidate any start whose getUserMedia is still pending (it self-stops)
     if (meter.raf) { cancelAnimationFrame(meter.raf); meter.raf = 0; }
     if (meter.ctxSrc) { try { meter.ctxSrc.disconnect(); } catch { /* ignore */ } meter.ctxSrc = null; }
+    if (meter.gainNode) { try { meter.gainNode.disconnect(); } catch { /* ignore */ } meter.gainNode = null; }
     meter.analyser = null;
     // Drop our reference and release the shared stream when the monitor is the only owner. Keeping it
     // open after the visible monitor stops makes the browser report that the mic is still in use.

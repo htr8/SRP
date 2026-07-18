@@ -1086,6 +1086,37 @@ body {
     color: var(--text);
     background: var(--panel-2);
 }
+.input-gain-control {
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    height: 26px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+}
+.input-gain-control span {
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.input-gain-control button {
+    width: 26px;
+    height: 26px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--line);
+    font-weight: 800;
+    cursor: pointer;
+}
+.input-gain-control button:disabled {
+    color: var(--muted);
+    cursor: default;
+    opacity: 0.45;
+}
 .mic-hint { font-size: 11px; }
 .mic-hint-dismiss {
     margin-left: 6px;
