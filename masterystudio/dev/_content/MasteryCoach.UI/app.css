@@ -3506,6 +3506,52 @@ kbd {
     white-space: nowrap;
 }
 
+.metronome-drill-editor {
+    padding: 0.65rem 1.25rem;
+    background: rgba(0, 0, 0, 0.14);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.metronome-drill-editor-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+    align-items: center;
+    gap: 0.38rem;
+}
+
+.metronome-drill-edit-select,
+.metronome-drill-edit-select select,
+.metronome-drill-name-input {
+    min-width: 0;
+    width: 100%;
+}
+
+.metronome-drill-edit-select select,
+.metronome-drill-name-input {
+    height: 34px;
+    color: var(--text);
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+}
+
+.metronome-drill-name-input {
+    padding: 0 0.65rem;
+}
+
+.metronome-drill-editor button {
+    min-height: 34px;
+    padding: 0 0.62rem;
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.metronome-drill-editor-close {
+    width: 34px;
+    padding: 0;
+}
+
 .metronome-save-setup,
 .metronome-add-step {
     flex: none;
@@ -3606,6 +3652,18 @@ kbd {
     font-size: 3rem;
     line-height: 1;
     border-bottom: none;
+}
+
+.metronome-hero-tempo.running .metronome-note,
+.metronome-hero-tempo.running .metronome-unit,
+.metronome-hero-tempo.running .metronome-bpm:disabled {
+    color: #f6c23a;
+    opacity: 1;
+    -webkit-text-fill-color: #f6c23a;
+}
+
+.metronome-hero-tempo.running .metronome-bpm:disabled {
+    text-shadow: 0 0 14px rgba(246, 194, 58, 0.28);
 }
 
 .metronome-unit {
@@ -3839,7 +3897,7 @@ kbd {
 
 .metronome-step-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 128px;
+    grid-template-columns: minmax(0, 1fr) 150px;
     align-items: stretch;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.035);
@@ -3917,10 +3975,18 @@ kbd {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: stretch;
     justify-content: center;
     gap: 0.12rem;
     padding: 0.35rem 0.45rem;
+}
+
+.metronome-step-meta-top {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.32rem;
 }
 
 .metronome-repeat-pill {
@@ -3979,26 +4045,30 @@ kbd {
 
 .metronome-step-tools {
     min-width: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    display: flex;
+    align-items: stretch;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .metronome-step-actions {
-    display: grid;
-    grid-template-rows: 1fr 1fr;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.18rem;
 }
 
 .metronome-step-action {
     color: var(--muted);
-    background: transparent;
-    border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 28px;
+    height: 22px;
+    padding: 0 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
     cursor: pointer;
-}
-
-.metronome-step-action:first-child {
-    border-top: none;
 }
 
 .metronome-step-action:hover,
@@ -4172,6 +4242,27 @@ kbd {
         padding-left: 0.5rem;
         padding-right: 1.5rem;
         font-size: 0.72rem;
+    }
+
+    .metronome-drill-editor {
+        padding: 0.45rem 0.65rem;
+    }
+
+    .metronome-drill-editor-head {
+        grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+        gap: 0.28rem;
+    }
+
+    .metronome-drill-editor-head button:not(.metronome-drill-editor-close) {
+        padding: 0 0.4rem;
+    }
+
+    .metronome-drill-edit-select select,
+    .metronome-drill-name-input,
+    .metronome-drill-editor button {
+        min-height: 30px;
+        height: 30px;
+        font-size: 0.68rem;
     }
 
     .metronome-save-setup,
@@ -4373,7 +4464,7 @@ kbd {
     }
 
     .metronome-step-row {
-        grid-template-columns: minmax(0, 1fr) 104px;
+        grid-template-columns: minmax(0, 1fr) 132px;
     }
 
     .metronome-step-number {
@@ -4407,12 +4498,16 @@ kbd {
     }
 
     .metronome-step-tools {
-        grid-template-columns: minmax(0, 1fr) 32px;
+        display: flex;
     }
 
     .metronome-step-meta {
         gap: 0.06rem;
-        padding: 0.22rem 0.28rem;
+        padding: 0.22rem 0.32rem;
+    }
+
+    .metronome-step-meta-top {
+        gap: 0.22rem;
     }
 
     .metronome-repeat-pill {
@@ -4437,7 +4532,10 @@ kbd {
     }
 
     .metronome-step-action {
-        font-size: 0.68rem;
+        min-width: 25px;
+        height: 19px;
+        padding: 0 0.18rem;
+        font-size: 0.54rem;
         line-height: 1;
     }
 
