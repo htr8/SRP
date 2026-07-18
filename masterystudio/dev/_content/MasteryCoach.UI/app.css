@@ -2966,6 +2966,10 @@ button.primary {
     gap: 16px;
 }
 
+.song-editor-columns {
+    grid-template-columns: 1fr;
+}
+
 .setlist-column h3 {
     margin: 0 0 8px;
     font-size: 13px;
