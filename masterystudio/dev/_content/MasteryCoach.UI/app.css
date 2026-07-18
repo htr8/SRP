@@ -4821,6 +4821,19 @@ kbd {
     font-variant-numeric: tabular-nums;
 }
 
+/* "Settled" — consecutive raw frames agree; the reading is stable enough to fine-tune against. The
+   cents number stays dimmed while still in motion and solidifies when settled; the labeled chip's green
+   means "stable", not "in tune". */
+.tuner-cents-unsettled {
+    opacity: 0.55;
+}
+
+.tuner-settled-chip {
+    margin-left: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--tune-good);
+}
+
 .tuner-strings {
     display: flex;
     flex-direction: column;
