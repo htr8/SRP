@@ -54,10 +54,14 @@ async function ensureGraph(deviceId) {
     if (!stream) {
         const constraints = {
             audio: {
-                // Tuning needs the RAW signal: browser voice processing would distort pitch/level.
+                // Echo cancellation / noise suppression stay OFF: both are voice processing that can
+                // distort a guitar's harmonic structure and skew the pitch estimate.
                 echoCancellation: false,
                 noiseSuppression: false,
-                autoGainControl: false,
+                // AGC is ON for the tuner (unlike recording, where absolute level matters): pitch is
+                // level-invariant, and built-in laptop/phone mics deliver an unamplified guitar at
+                // -60..-90 dB raw (device finding 2026-07-18) — AGC lifts it into a workable range.
+                autoGainControl: true,
                 // `ideal` (not `exact`): a stale persisted device falls back to the default mic instead
                 // of failing capture outright — same policy as instrumentCapture.js.
                 ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
