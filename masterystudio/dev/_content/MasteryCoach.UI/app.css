@@ -3953,7 +3953,45 @@ kbd {
 .metronome-footer {
     margin-top: 0;
     padding: 1rem;
+    align-items: stretch;
     background: rgba(0, 0, 0, 0.16);
+}
+
+.metronome-settings-panel {
+    width: 100%;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metronome-settings-toggle {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--text);
+}
+
+.metronome-settings-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: #f6c23a;
+}
+
+.metronome-settings-toggle span {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.metronome-settings-toggle strong {
+    font-size: 0.9rem;
+}
+
+.metronome-settings-toggle small {
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.25;
 }
 
 @media (max-width: 620px) {
@@ -4201,6 +4239,22 @@ kbd {
 
     .metronome-start {
         font-size: 1.1rem;
+    }
+
+    .metronome-footer {
+        padding: 0.75rem;
+    }
+
+    .metronome-settings-panel {
+        padding-bottom: 0.65rem;
+    }
+
+    .metronome-settings-toggle strong {
+        font-size: 0.84rem;
+    }
+
+    .metronome-settings-toggle small {
+        font-size: 0.72rem;
     }
 }
 
