@@ -62,7 +62,7 @@ export function countInMusicAlignment(countIn, tempoRatio, maxSkipSeconds = Infi
 /// callers that need cancellation can retain it. `destination` (optional) is the node the voice
 /// feeds — the clicks are NOT stems, so this is their ONLY routing hook: dual-mix passes the
 /// monitor bus here so the room never hears the count (DualMixPlan.md §3.1). Default stays
-/// ctx.destination (the metronome and the single-bus players are unchanged).
+/// ctx.destination; the metronome and playback engines pass their keep-alive/master destination.
 export function scheduleClickVoice(ctx, time, accent, destination) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();

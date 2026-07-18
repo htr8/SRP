@@ -7,6 +7,7 @@
 
 import { getSharedContext } from './audioContext.js';
 import { scheduleClickVoice } from './countIn.js';
+import { ensureMasterPanner } from './engineCommon.js';
 
 const SCHEDULE_AHEAD = 0.1;   // seconds of audio scheduled in advance
 const LOOKAHEAD_MS = 25;      // how often the scheduler wakes
@@ -23,6 +24,7 @@ const state = {
     accents: new Set([1]),
     endTime: null,            // AudioContext time to auto-stop, or null
     dotnet: null,
+    pan: 0,
 };
 
 export function setEndedCallback(dotnetRef) {
@@ -41,9 +43,13 @@ function ensureContext() {
     return state.ctx;
 }
 
+function outputNode() {
+    return ensureMasterPanner(ensureContext(), state);
+}
+
 // The click voice itself is shared with the count-in (countIn.js) so the two never drift in timbre.
 function scheduleClick(beatInMeasure, time) {
-    scheduleClickVoice(state.ctx, time, state.accents.has(beatInMeasure));
+    scheduleClickVoice(state.ctx, time, state.accents.has(beatInMeasure), outputNode());
 }
 
 function scheduleChimeVoice(time, frequency, gainValue, duration) {
@@ -54,7 +60,7 @@ function scheduleChimeVoice(time, frequency, gainValue, duration) {
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(gainValue, time + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    osc.connect(gain).connect(state.ctx.destination);
+    osc.connect(gain).connect(outputNode());
     osc.start(time);
     osc.stop(time + duration + 0.03);
 }
