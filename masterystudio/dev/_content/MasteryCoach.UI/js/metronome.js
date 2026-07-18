@@ -49,7 +49,7 @@ function scheduleClick(beatInMeasure, time) {
 function scheduleChimeVoice(time, frequency, gainValue, duration) {
     const osc = state.ctx.createOscillator();
     const gain = state.ctx.createGain();
-    osc.type = 'sine';
+    osc.type = 'triangle';
     osc.frequency.setValueAtTime(frequency, time);
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(gainValue, time + 0.015);
@@ -108,8 +108,8 @@ export async function playCompletionChime() {
     const ctx = ensureContext();
     if (ctx.state === 'suspended') await ctx.resume();
     const start = ctx.currentTime + 0.02;
-    scheduleChimeVoice(start, 880, 0.16, 0.18);
-    scheduleChimeVoice(start + 0.16, 1320, 0.13, 0.22);
+    scheduleChimeVoice(start, 880, 0.36, 0.16);
+    scheduleChimeVoice(start + 0.14, 1320, 0.28, 0.2);
 }
 
 // The current run's beat grid on the shared AudioContext clock, for the recorder to compute an
