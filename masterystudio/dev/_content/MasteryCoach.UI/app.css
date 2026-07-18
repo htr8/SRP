@@ -4058,6 +4058,23 @@ kbd {
     align-self: flex-start;
 }
 
+.metronome-config-stepper-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.metronome-config-stepper {
+    grid-template-columns: 38px 48px 38px;
+    height: 38px;
+}
+
+.metronome-config-stepper .metronome-step-btn,
+.metronome-config-stepper .metronome-step-label {
+    height: 38px;
+}
+
 .metronome-settings-toggle {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
