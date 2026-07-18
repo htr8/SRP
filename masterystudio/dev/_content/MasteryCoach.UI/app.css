@@ -3791,14 +3791,15 @@ kbd {
 }
 
 .metronome-cycle-stepper {
-    grid-template-columns: 30px 34px 30px;
+    grid-template-columns: 32px 36px 32px;
+    width: 100px;
     height: 30px;
-    border-radius: 999px;
+    border-radius: 8px;
 }
 
 .metronome-cycle-stepper .metronome-step-btn,
 .metronome-cycle-stepper .metronome-step-label {
-    width: auto;
+    width: 100%;
     height: 30px;
     font-size: 0.82rem;
 }
@@ -3838,7 +3839,7 @@ kbd {
 
 .metronome-step-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 76px 66px;
+    grid-template-columns: minmax(0, 1fr) 128px;
     align-items: stretch;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.035);
@@ -3919,7 +3920,7 @@ kbd {
     align-items: flex-end;
     justify-content: center;
     gap: 0.12rem;
-    padding: 0.4rem 0.3rem 0.4rem 0;
+    padding: 0.35rem 0.45rem;
 }
 
 .metronome-repeat-pill {
@@ -3976,22 +3977,28 @@ kbd {
     padding: 0.28rem 0.38rem;
 }
 
+.metronome-step-tools {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .metronome-step-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    grid-template-rows: 1fr 1fr;
 }
 
 .metronome-step-action {
     color: var(--muted);
     background: transparent;
     border: none;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
 }
 
 .metronome-step-action:first-child {
-    border-left: none;
+    border-top: none;
 }
 
 .metronome-step-action:hover,
@@ -4323,12 +4330,14 @@ kbd {
     }
 
     .metronome-cycle-stepper {
-        grid-template-columns: 26px 30px 26px;
+        grid-template-columns: 24px 28px 24px;
+        width: 76px;
         height: 26px;
     }
 
     .metronome-cycle-stepper .metronome-step-btn,
     .metronome-cycle-stepper .metronome-step-label {
+        width: 100%;
         height: 26px;
         font-size: 0.72rem;
     }
@@ -4364,7 +4373,7 @@ kbd {
     }
 
     .metronome-step-row {
-        grid-template-columns: minmax(0, 1fr) 62px 54px;
+        grid-template-columns: minmax(0, 1fr) 104px;
     }
 
     .metronome-step-number {
@@ -4393,33 +4402,43 @@ kbd {
     .metronome-step-rest {
         display: inline;
         font-size: 0.66rem;
+        line-height: 1;
         white-space: nowrap;
     }
 
+    .metronome-step-tools {
+        grid-template-columns: minmax(0, 1fr) 32px;
+    }
+
     .metronome-step-meta {
-        gap: 0.08rem;
-        padding: 0.28rem 0.2rem 0.28rem 0;
+        gap: 0.06rem;
+        padding: 0.22rem 0.28rem;
     }
 
     .metronome-repeat-pill {
-        min-width: 30px;
-        height: 20px;
+        min-width: 31px;
+        height: 19px;
         font-size: 0.68rem;
     }
 
     .metronome-repeat-control {
-        grid-template-columns: 18px 20px 18px;
+        grid-template-columns: 17px 20px 17px;
         height: 20px;
     }
 
     .metronome-repeat-control button {
-        width: 18px;
+        width: 17px;
         height: 20px;
         font-size: 0.66rem;
     }
 
     .metronome-repeat-control strong {
         font-size: 0.68rem;
+    }
+
+    .metronome-step-action {
+        font-size: 0.68rem;
+        line-height: 1;
     }
 
     .metronome-side-action,
