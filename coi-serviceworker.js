@@ -20,7 +20,7 @@
  *   repeat    — _framework/ assets served from cache, other requests go to network.
  */
 
-const CACHE_NAME = "sr-framework-1784404837";
+const CACHE_NAME = "sr-framework-1784415822";
 
 // Asset paths worth caching (large, stable between deployments).
 // CSS is intentionally excluded — it's small and changes frequently; serving stale
