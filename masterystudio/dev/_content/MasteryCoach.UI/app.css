@@ -3482,6 +3482,30 @@ kbd {
     white-space: nowrap;
 }
 
+.metronome-current-step-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.metronome-drill-picker {
+    width: min(12.5rem, 34vw);
+    min-width: 8rem;
+    height: 38px;
+    padding: 0 2rem 0 0.75rem;
+    color: var(--text);
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .metronome-save-setup,
 .metronome-add-step {
     flex: none;
@@ -4128,6 +4152,19 @@ kbd {
     .metronome-current-step span {
         font-size: 0.76rem;
         line-height: 1.1;
+    }
+
+    .metronome-current-step-actions {
+        gap: 0.35rem;
+    }
+
+    .metronome-drill-picker {
+        width: min(9.5rem, 34vw);
+        min-width: 6.25rem;
+        height: 30px;
+        padding-left: 0.5rem;
+        padding-right: 1.5rem;
+        font-size: 0.72rem;
     }
 
     .metronome-save-setup,
