@@ -3996,41 +3996,47 @@ kbd {
 
 @media (max-width: 620px) {
     .metronome-current-step {
-        gap: 0.65rem;
-        padding: 0.55rem 0.75rem;
+        gap: 0.5rem;
+        padding: 0.38rem 0.65rem;
     }
 
     .metronome-current-step > div {
-        gap: 0.1rem;
+        gap: 0.04rem;
     }
 
     .metronome-current-step-kicker {
-        font-size: 0.64rem;
+        font-size: 0.6rem;
     }
 
     .metronome-current-step strong {
-        font-size: 0.88rem;
+        font-size: 0.82rem;
+        line-height: 1.12;
+    }
+
+    .metronome-current-step span {
+        font-size: 0.76rem;
+        line-height: 1.1;
     }
 
     .metronome-save-setup,
     .metronome-add-step {
-        min-height: 32px;
-        padding-inline: 0.75rem;
-        font-size: 0.78rem;
+        min-height: 30px;
+        padding-inline: 0.65rem;
+        font-size: 0.74rem;
     }
 
     .metronome-hero {
-        gap: 0.65rem;
-        padding: 0.75rem 0.75rem 0.6rem;
+        gap: 0.5rem;
+        padding: 0.5rem 0.65rem 0.38rem;
     }
 
     .metronome-hero-beat,
     .metronome-hero-tempo {
-        gap: 0.45rem;
+        gap: 0.28rem;
     }
 
     .metronome-hero-divider {
-        min-height: 74px;
+        min-height: 58px;
     }
 
     .metronome-section-label,
@@ -4038,107 +4044,107 @@ kbd {
     .metronome-step-caption,
     .metronome-clock-label,
     .metronome-stat-label {
-        font-size: 0.66rem;
+        font-size: 0.6rem;
     }
 
     .metronome-beats {
-        gap: 0.28rem;
+        gap: 0.18rem;
     }
 
     .metronome-beat {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
     }
 
     .metronome-beat-dot,
     .metronome-beat.accented .metronome-beat-dot,
     .metronome-beat.downbeat .metronome-beat-dot {
-        width: 18px;
-        height: 18px;
+        width: 15px;
+        height: 15px;
     }
 
     .metronome-note {
-        font-size: 1.3rem;
+        font-size: 1.1rem;
     }
 
     .metronome-bpm {
-        font-size: 2.3rem;
+        font-size: 2rem;
     }
 
     .metronome-unit {
-        font-size: 0.78rem;
+        font-size: 0.68rem;
     }
 
     .metronome-tempo-steps {
-        gap: 0.55rem;
-        padding: 0 0.75rem 0.75rem;
+        gap: 0.45rem;
+        padding: 0 0.65rem 0.5rem;
     }
 
     .metronome-stepper {
         grid-template-columns: 1fr 1fr 1fr;
         width: 100%;
-        height: 38px;
+        height: 34px;
     }
 
     .metronome-step-btn {
         width: auto;
-        height: 38px;
+        height: 34px;
     }
 
     .metronome-step-label {
-        height: 38px;
-        font-size: 0.82rem;
+        height: 34px;
+        font-size: 0.76rem;
     }
 
     .metronome-meter-row {
-        gap: 0.75rem;
-        padding: 0.75rem;
+        gap: 0.55rem;
+        padding: 0.48rem 0.65rem;
     }
 
     .metronome-meter-field {
-        gap: 0.5rem;
+        gap: 0.35rem;
     }
 
     .metronome-beats-input {
-        width: 3.25rem;
-        height: 2.45rem;
-        font-size: 1.15rem;
+        width: 2.85rem;
+        height: 2.05rem;
+        font-size: 1rem;
     }
 
     .metronome-tempo-source {
-        font-size: 0.82rem;
+        font-size: 0.76rem;
     }
 
     .metronome-time-grid {
-        grid-template-columns: minmax(82px, 1fr) minmax(104px, 1.05fr) minmax(82px, 1fr);
-        gap: 0.45rem;
+        grid-template-columns: minmax(74px, 1fr) minmax(92px, 1.02fr) minmax(74px, 1fr);
+        gap: 0.35rem;
     }
 
     .metronome-time-grid > div {
-        gap: 0.28rem;
+        gap: 0.18rem;
     }
 
     .metronome-routine-section {
-        gap: 0.5rem;
-        padding: 0.8rem 0.65rem;
+        gap: 0.34rem;
+        padding: 0.56rem 0.55rem;
     }
 
     .metronome-clock {
-        font-size: 2.5rem;
+        font-size: 2.05rem;
     }
 
     .metronome-progress {
-        height: 5px;
+        height: 4px;
     }
 
     .metronome-check {
-        gap: 0.45rem;
-        font-size: 0.86rem;
+        gap: 0.35rem;
+        font-size: 0.78rem;
     }
 
     .metronome-check input {
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
     }
 
     .metronome-stats {
@@ -4154,8 +4160,8 @@ kbd {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
         justify-items: center;
-        row-gap: 0.18rem;
-        padding: 0.6rem 0.3rem;
+        row-gap: 0.1rem;
+        padding: 0.42rem 0.25rem;
         text-align: center;
     }
 
@@ -4164,12 +4170,12 @@ kbd {
     }
 
     .metronome-stat strong {
-        font-size: 1.05rem;
+        font-size: 0.92rem;
     }
 
     .metronome-cycle-btn {
-        width: 22px;
-        height: 22px;
+        width: 20px;
+        height: 20px;
     }
 
     .metronome-actions {
@@ -4180,35 +4186,36 @@ kbd {
 
     .metronome-current-step,
     .metronome-saved-steps {
-        padding-inline: 0.75rem;
+        padding-inline: 0.65rem;
     }
 
     .metronome-saved-steps {
-        gap: 0.5rem;
-        padding-block: 0.7rem;
+        gap: 0.38rem;
+        padding-block: 0.5rem;
     }
 
     .metronome-saved-steps-head strong {
-        font-size: 0.78rem;
+        font-size: 0.72rem;
     }
 
     .metronome-step-list {
-        gap: 0.3rem;
+        gap: 0.25rem;
     }
 
     .metronome-step-load {
-        grid-template-columns: 34px minmax(0, 1fr);
-        gap: 0.5rem;
-        padding: 0.4rem 0.55rem;
+        grid-template-columns: 30px minmax(0, 1fr) auto;
+        gap: 0.42rem;
+        padding: 0.32rem 0.45rem;
     }
 
     .metronome-step-row {
-        grid-template-columns: minmax(0, 1fr) 38px;
+        grid-template-columns: minmax(0, 1fr) 34px;
     }
 
     .metronome-step-number {
-        width: 30px;
-        height: 30px;
+        width: 27px;
+        height: 27px;
+        font-size: 0.84rem;
     }
 
     .metronome-step-copy {
@@ -4216,15 +4223,17 @@ kbd {
     }
 
     .metronome-step-copy strong {
-        font-size: 0.86rem;
+        font-size: 0.8rem;
     }
 
     .metronome-step-copy span {
-        font-size: 0.74rem;
+        font-size: 0.68rem;
     }
 
     .metronome-step-rest {
-        display: none;
+        display: inline;
+        font-size: 0.66rem;
+        white-space: nowrap;
     }
 
     .metronome-side-action,
