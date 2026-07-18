@@ -3757,7 +3757,8 @@ kbd {
 }
 
 .metronome-stat strong.metronome-status-ready,
-.metronome-stat strong.metronome-status-rest {
+.metronome-stat strong.metronome-status-rest,
+.metronome-stat strong.metronome-status-paused {
     color: #8ee75a;
 }
 
@@ -3765,39 +3766,17 @@ kbd {
     color: #f6c23a;
 }
 
-.metronome-cycle-control {
-    display: inline-grid;
-    grid-template-columns: 30px 32px 30px;
-    align-items: center;
-    justify-content: center;
-    height: 28px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+.metronome-cycle-stepper {
+    grid-template-columns: 30px 34px 30px;
+    height: 30px;
     border-radius: 999px;
 }
 
-.metronome-cycle-control strong {
-    color: var(--text);
-    font-size: 1rem;
-    line-height: 1;
-    text-align: center;
-}
-
-.metronome-cycle-btn {
-    width: 30px;
-    height: 28px;
-    color: var(--text);
-    font-weight: 800;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    cursor: pointer;
-}
-
-.metronome-cycle-btn:disabled {
-    color: var(--muted);
-    cursor: default;
+.metronome-cycle-stepper .metronome-step-btn,
+.metronome-cycle-stepper .metronome-step-label {
+    width: auto;
+    height: 30px;
+    font-size: 0.82rem;
 }
 
 .metronome-saved-steps {
@@ -4289,18 +4268,15 @@ kbd {
         font-size: 0.92rem;
     }
 
-    .metronome-cycle-btn {
-        width: 26px;
-        height: 24px;
+    .metronome-cycle-stepper {
+        grid-template-columns: 26px 30px 26px;
+        height: 26px;
     }
 
-    .metronome-cycle-control {
-        grid-template-columns: 26px 28px 26px;
-        height: 24px;
-    }
-
-    .metronome-cycle-control strong {
-        font-size: 0.92rem;
+    .metronome-cycle-stepper .metronome-step-btn,
+    .metronome-cycle-stepper .metronome-step-label {
+        height: 26px;
+        font-size: 0.72rem;
     }
 
     .metronome-actions {
