@@ -25,15 +25,30 @@ let analyser = null;
 let timer = null;
 let dotnet = null;
 let frame = null;
+let currentDeviceId = null; // the deviceId the open stream was built with, to detect a switch
 
 function supported() {
     return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+}
+
+function releaseGraph() {
+    if (source) { try { source.disconnect(); } catch (e) { } source = null; }
+    analyser = null;
+    if (stream) {
+        for (const t of stream.getTracks()) { try { t.stop(); } catch (e) { } }
+        stream = null;
+    }
 }
 
 async function ensureGraph(deviceId) {
     ctx = getSharedContext();
     if (ctx.state === 'suspended') {
         try { await ctx.resume(); } catch (e) { /* resumes on the next gesture */ }
+    }
+
+    // Switching microphones (device picker, 2026-07-18): rebuild the stream for the new device.
+    if (stream && (deviceId ?? null) !== currentDeviceId) {
+        releaseGraph();
     }
 
     if (!stream) {
@@ -43,10 +58,13 @@ async function ensureGraph(deviceId) {
                 echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: false,
-                ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+                // `ideal` (not `exact`): a stale persisted device falls back to the default mic instead
+                // of failing capture outright — same policy as instrumentCapture.js.
+                ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
             },
         };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentDeviceId = deviceId ?? null;
     }
 
     if (!analyser) {
@@ -57,6 +75,26 @@ async function ensureGraph(deviceId) {
         source.connect(analyser);
         frame = new Float32Array(analyser.fftSize);
     }
+}
+
+// Enumerate audio inputs for the mic picker. Labels are only populated once mic permission is granted,
+// so this briefly opens (and immediately closes) a default stream if labels are missing — the same
+// unlock pattern as instrumentCapture.js (kept self-contained here on purpose; see the module header).
+export async function listInputs() {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    if (devices.some(d => d.kind === 'audioinput' && !d.label)) {
+        try {
+            const unlock = await navigator.mediaDevices.getUserMedia({ audio: true });
+            for (const t of unlock.getTracks()) { try { t.stop(); } catch (e) { } }
+            devices = await navigator.mediaDevices.enumerateDevices();
+        } catch (e) { /* permission denied: return the label-less list */ }
+    }
+
+    return devices
+        .filter(d => d.kind === 'audioinput')
+        .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
 }
 
 // Start the live mono tuner: push a time-domain frame to C# every POLL_MS. dotNetRef must expose the
@@ -94,11 +132,7 @@ function stop_timer() {
 export function stop() {
     stop_timer();
     dotnet = null;
-    if (source) { try { source.disconnect(); } catch (e) { } source = null; }
-    analyser = null;
-    if (stream) {
-        for (const t of stream.getTracks()) { try { t.stop(); } catch (e) { } }
-        stream = null;
-    }
+    releaseGraph();
+    currentDeviceId = null;
     // The shared AudioContext is app-lifetime — never close it here (others depend on it).
 }
