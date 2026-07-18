@@ -76,34 +76,6 @@ export function scheduleClickVoice(ctx, time, accent, destination) {
     return osc;
 }
 
-/// A soft "time's up / switch" chime — deliberately UNLIKE the percussive click (a longer, mellow,
-/// two-partial bell tone) so it's noticed OVER a metronome that keeps ticking. Plays `beeps` gentle
-/// notes spaced `spacing` seconds apart starting at `time`. Used by the metronome's interval timer
-/// when auto-stop is OFF (chime-and-continue) and at each drill/rest switch. Returns nothing — these
-/// are fire-and-forget (they self-stop); the metronome never needs to cancel them.
-export function scheduleChime(ctx, time, beeps = 3, spacing = 0.28, destination) {
-    const count = beeps > 0 ? Math.floor(beeps) : 1;
-    // A pleasant bell-ish interval (a perfect fifth pair) that reads as "attention" without alarm.
-    const base = 880;   // A5 — sits above the 1000/1500 Hz click so it stands out, not buried under it.
-    for (let i = 0; i < count; i++) {
-        const at = time + i * spacing;
-        // Two detuned partials give it a soft bell timbre rather than a flat sine beep.
-        for (const [freq, level] of [[base, 0.28], [base * 1.5, 0.12]]) {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            // Gentle attack + a longer decay than the click's 30ms so it rings softly, not a tick.
-            gain.gain.setValueAtTime(0.0001, at);
-            gain.gain.exponentialRampToValueAtTime(level, at + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
-            osc.connect(gain).connect(destination || ctx.destination);
-            osc.start(at);
-            osc.stop(at + 0.24);
-        }
-    }
-}
-
 /// Schedule the count's click oscillators on `ctx`, pushing each into `nodes` so the caller can
 /// cancel them (pause/stop/seek/replay). Every bar's downbeat is accented (beat % 4 === 0), so an
 /// 8-count accents beat 1 of BOTH measures. `label` tags the diagnostic log line ("track"/"stems");

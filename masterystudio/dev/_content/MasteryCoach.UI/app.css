@@ -3322,35 +3322,10 @@ kbd {
 
 .metronome-timer {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.55rem;
-}
-
-/* One interval editor ("Timer"/"Rest"): a label above a row of minutes + seconds unit-steppers. */
-.metronome-timer-block {
-    display: flex;
-    flex-wrap: wrap;
     justify-content: center;
-    align-items: flex-start;
-    gap: 0.3rem 0.5rem;
-}
-
-.metronome-timer-block > .metronome-meter-label {
-    flex-basis: 100%;
-    text-align: center;
-    font-size: 0.75rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
-
-/* The minutes group and the seconds group sit side by side under the label. */
-.metronome-timer-unit {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
+    flex-wrap: wrap;
+    gap: 0.65rem;
 }
 
 .metronome-timer-field {
@@ -3358,24 +3333,6 @@ kbd {
     align-items: center;
     gap: 0.4rem;
 }
-
-/* The auto-stop toggle row. */
-.metronome-timer-mode {
-    display: flex;
-    justify-content: center;
-}
-
-.metronome-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--text);
-    cursor: pointer;
-}
-
-.metronome-toggle input { cursor: pointer; }
-.metronome-toggle input:disabled { cursor: default; }
 
 .metronome-timer-input {
     width: 4ch;
@@ -3469,6 +3426,461 @@ kbd {
 .metronome-log-message {
     margin: 0;
     text-align: center;
+}
+
+/* Metronome routine redesign: mockup-style full control surface with timer/rest/cycle status. */
+.metronome-panel {
+    width: min(100%, 560px);
+    margin: 0 auto;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    background: linear-gradient(180deg, #15191e 0%, #11151a 100%);
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.metronome-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.75rem 1rem 1.25rem;
+}
+
+.metronome-hero-beat,
+.metronome-hero-tempo {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.metronome-hero-divider {
+    align-self: stretch;
+    min-height: 92px;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.metronome-section-label,
+.metronome-field-label,
+.metronome-step-caption,
+.metronome-clock-label,
+.metronome-stat-label {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.metronome-beats {
+    gap: 0.55rem;
+}
+
+.metronome-beat {
+    width: 38px;
+    height: 38px;
+}
+
+.metronome-beat-dot {
+    width: 24px;
+    height: 24px;
+    background: #52606d;
+    border: none;
+}
+
+.metronome-beat.accented .metronome-beat-dot,
+.metronome-beat.downbeat .metronome-beat-dot {
+    width: 24px;
+    height: 24px;
+    background: #f6c23a;
+}
+
+.metronome-beat.current .metronome-beat-dot {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 5px rgba(246, 194, 58, 0.2);
+}
+
+.metronome-tempo-readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.55rem;
+}
+
+.metronome-note {
+    color: #aeb6c0;
+    font-size: 1.55rem;
+}
+
+.metronome-bpm {
+    width: 3.3ch;
+    font-size: 3rem;
+    line-height: 1;
+    border-bottom: none;
+}
+
+.metronome-unit {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.metronome-tempo-steps {
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1rem 1.35rem;
+}
+
+.metronome-stepper {
+    display: inline-grid;
+    grid-template-columns: 44px 44px 44px;
+    height: 44px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.metronome-tempo-steps .metronome-stepper {
+    flex: 1 1 0;
+}
+
+.metronome-step-btn {
+    width: 44px;
+    height: 44px;
+    font-weight: 800;
+}
+
+.metronome-step-label {
+    height: 44px;
+    color: #e44c2a;
+    font-size: 0.95rem;
+}
+
+.metronome-meter-row,
+.metronome-routine-section,
+.metronome-stats {
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.metronome-meter-row {
+    display: flex;
+    align-items: center;
+    gap: 1.35rem;
+    padding: 1.35rem 2.5rem;
+}
+
+.metronome-meter-field {
+    gap: 0.75rem;
+}
+
+.metronome-beats-input {
+    width: 4.1rem;
+    height: 3rem;
+    font-size: 1.35rem;
+    font-weight: 800;
+    border-radius: 8px;
+}
+
+.metronome-tempo-source {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.metronome-routine-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.55rem 1rem;
+}
+
+.metronome-time-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(96px, 136px) minmax(112px, 1fr) minmax(96px, 136px);
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.metronome-time-grid > div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.metronome-time-readout {
+    text-align: center;
+}
+
+.metronome-clock {
+    color: var(--text);
+    font-size: clamp(2.35rem, 10vw, 3.45rem);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.metronome-progress {
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+}
+
+.metronome-progress span {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    background: #f6c23a;
+    border-radius: inherit;
+    transition: width 120ms linear;
+}
+
+.metronome-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.metronome-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: #f6c23a;
+}
+
+.metronome-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.metronome-stat {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 0.65rem;
+    align-items: center;
+    padding: 1.1rem 1rem;
+}
+
+.metronome-stat + .metronome-stat {
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.metronome-stat-icon {
+    grid-row: 1 / span 2;
+    color: #f6c23a;
+    font-weight: 800;
+}
+
+.metronome-stat strong {
+    color: var(--text);
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.metronome-stat strong.metronome-status-ready,
+.metronome-stat strong.metronome-status-rest {
+    color: #8ee75a;
+}
+
+.metronome-stat strong.metronome-status-playing {
+    color: #f6c23a;
+}
+
+.metronome-cycle-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.metronome-cycle-btn {
+    width: 26px;
+    height: 26px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.metronome-cycle-btn:disabled {
+    color: var(--muted);
+    cursor: default;
+}
+
+.metronome-actions {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) 96px;
+    gap: 1.5rem;
+    padding: 1.6rem 1.5rem;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.metronome-side-action,
+.metronome-start {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 76px;
+    border-radius: 14px;
+    cursor: pointer;
+}
+
+.metronome-side-action {
+    color: var(--text);
+    font-size: 2rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metronome-side-action.on {
+    border-color: #f6c23a;
+}
+
+.metronome-start {
+    gap: 0.75rem;
+    color: #080b0f;
+    background: #f6c23a;
+    border: none;
+    font-size: 1.35rem;
+    font-weight: 900;
+}
+
+.metronome-start.playing {
+    color: var(--text);
+    background: #b94130;
+}
+
+.metronome-play-triangle {
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 16px solid currentColor;
+}
+
+.metronome-footer {
+    margin-top: 0;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+@media (max-width: 620px) {
+    .metronome-hero {
+        gap: 0.8rem;
+        padding-inline: 0.75rem;
+    }
+
+    .metronome-beats {
+        gap: 0.35rem;
+    }
+
+    .metronome-beat {
+        width: 32px;
+        height: 32px;
+    }
+
+    .metronome-beat-dot,
+    .metronome-beat.accented .metronome-beat-dot,
+    .metronome-beat.downbeat .metronome-beat-dot {
+        width: 20px;
+        height: 20px;
+    }
+
+    .metronome-bpm {
+        font-size: 2.45rem;
+    }
+
+    .metronome-tempo-steps {
+        gap: 0.5rem;
+    }
+
+    .metronome-stepper {
+        grid-template-columns: 1fr 1fr 1fr;
+        width: 100%;
+    }
+
+    .metronome-step-btn {
+        width: auto;
+    }
+
+    .metronome-meter-row {
+        padding-inline: 1rem;
+    }
+
+    .metronome-time-grid {
+        grid-template-columns: minmax(86px, 1fr) minmax(104px, 1.1fr) minmax(86px, 1fr);
+        gap: 0.45rem;
+    }
+
+    .metronome-routine-section {
+        padding-inline: 0.65rem;
+    }
+
+    .metronome-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .metronome-stat + .metronome-stat {
+        border-left: 1px solid rgba(255, 255, 255, 0.16);
+        border-top: none;
+    }
+
+    .metronome-stat {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        justify-items: center;
+        row-gap: 0.25rem;
+        padding: 0.8rem 0.35rem;
+        text-align: center;
+    }
+
+    .metronome-stat-icon {
+        grid-row: auto;
+    }
+
+    .metronome-stat strong {
+        font-size: 1.15rem;
+    }
+
+    .metronome-actions {
+        grid-template-columns: 74px minmax(0, 1fr) 74px;
+        gap: 0.9rem;
+        padding-inline: 0.85rem;
+    }
+
+    .metronome-side-action,
+    .metronome-start {
+        min-height: 68px;
+    }
+}
+
+@media (max-width: 350px) {
+    .metronome-time-grid,
+    .metronome-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .metronome-stat + .metronome-stat {
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
 }
 
 /* ---- Guitar tuner (docs/08_Audio_Engine/GuitarTunerPlan.md) ---- */

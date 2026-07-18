@@ -6,7 +6,7 @@
 // JS timer jitter. Each click is a short oscillator burst (accent = higher pitch + louder).
 
 import { getSharedContext } from './audioContext.js';
-import { scheduleClickVoice, scheduleChime } from './countIn.js';
+import { scheduleClickVoice } from './countIn.js';
 
 const SCHEDULE_AHEAD = 0.1;   // seconds of audio scheduled in advance
 const LOOKAHEAD_MS = 25;      // how often the scheduler wakes
@@ -21,18 +21,7 @@ const state = {
     secondsPerBeat: 0.5,
     beatsPerMeasure: 4,
     accents: new Set([1]),
-    // --- interval timer ---
-    // The timer runs as up to two alternating phases (a "drill" and an optional "rest"), each a
-    // duration in seconds. autoStop=true is the classic behavior: at the end of phase 1 the click
-    // STOPS. autoStop=false is chime-and-continue: at each phase end we play a soft chime and, if a
-    // second interval is set, switch to the other phase (drill↔rest) and keep ticking; if not, it's
-    // one-shot (chime once, timer done, click keeps running until stopped).
-    endTime: null,            // AudioContext time of the NEXT phase boundary, or null (no timer)
-    autoStop: true,
-    interval1: null,          // seconds; phase-1 (drill) duration. null = no timer.
-    interval2: null,          // seconds; phase-2 (rest) duration. null = one-shot phase-1 only.
-    phase: 1,                 // 1 = interval1 active, 2 = interval2 active
-    timerDone: false,         // one-shot timer has already fired (autoStop off, no interval2)
+    endTime: null,            // AudioContext time to auto-stop, or null
     dotnet: null,
 };
 
@@ -42,18 +31,6 @@ export function setEndedCallback(dotnetRef) {
 
 function notifyEnded() {
     if (state.dotnet) state.dotnet.invokeMethodAsync('OnMetronomeStopped');
-}
-
-// Tell C# the timer crossed a phase boundary while the click keeps running (autoStop off), so the UI
-// can update the "drill / rest" phase label and its countdown. phase is the phase NOW active (1 or 2);
-// remainingSeconds is that phase's length (0 when the one-shot timer is simply done).
-function notifyInterval(phase, remainingSeconds) {
-    if (state.dotnet) state.dotnet.invokeMethodAsync('OnMetronomeInterval', phase, remainingSeconds);
-}
-
-// The duration of a given phase, or null if that phase isn't configured.
-function phaseSeconds(phase) {
-    return phase === 2 ? state.interval2 : state.interval1;
 }
 
 function ensureContext() {
@@ -73,27 +50,9 @@ function scheduler() {
     const ctx = state.ctx;
     while (state.running && state.nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD) {
         if (state.endTime != null && state.nextNoteTime >= state.endTime) {
-            if (state.autoStop) {
-                // Classic behavior: the phase-1 timer stops the click.
-                stopInternal();
-                notifyEnded();
-                return;
-            }
-            // Chime-and-continue: soft tone at the boundary, then either switch phases or finish.
-            scheduleChime(ctx, state.endTime);
-            if (state.interval2 != null && state.interval1 != null) {
-                // Two-interval drill/rest: flip phase and re-arm the next boundary.
-                state.phase = state.phase === 1 ? 2 : 1;
-                const next = phaseSeconds(state.phase);
-                state.endTime = state.endTime + next;
-                notifyInterval(state.phase, next);
-                // fall through: keep scheduling clicks past the boundary in the same wake.
-            } else {
-                // One-shot: fire once, then no more boundaries — the click just keeps going.
-                state.endTime = null;
-                state.timerDone = true;
-                notifyInterval(0, 0);
-            }
+            stopInternal();
+            notifyEnded();
+            return;
         }
         const beatInMeasure = (state.beatIndex % state.beatsPerMeasure) + 1;
         scheduleClick(beatInMeasure, state.nextNoteTime);
@@ -114,66 +73,8 @@ function parseAccents(pattern, beatsPerMeasure) {
     return set;
 }
 
-// Change the tempo of the ALREADY-RUNNING metronome without stopping it. The scheduler reads
-// state.secondsPerBeat every wake, so the new tempo takes effect on the next beat — no gap, no
-// beat-count reset. No-op if not running (the next start() will use the stored value instead).
-// Re-anchors the beat grid to the current instant so getCurrentBeat()/getGrid() stay coherent with
-// the new interval (otherwise the dot indicator would drift, having been computed from the old one).
-export function setTempo(bpm) {
-    if (!state.running || !state.ctx) return;
-    const spb = 60.0 / (bpm > 0 ? bpm : 120);
-    if (spb === state.secondsPerBeat) return;
-    const ctx = state.ctx;
-    // Preserve the phase within the current beat so the tempo change doesn't nudge the next click
-    // earlier/later than a listener expects: keep nextNoteTime, but re-anchor the grid so the
-    // shared-clock beat math (getCurrentBeat/getGrid) uses the new interval from here forward.
-    state.gridStartTime = ctx.currentTime;
-    state.beatIndex = 0;
-    // Reschedule the pending next beat relative to now using the new interval, unless one is already
-    // imminently scheduled (within the current lookahead) — in that case let it fire and apply the new
-    // interval to the beat after it, so we never double-fire or drop a click at the seam.
-    if (state.nextNoteTime > ctx.currentTime + SCHEDULE_AHEAD) {
-        state.nextNoteTime = ctx.currentTime + spb;
-    }
-    state.secondsPerBeat = spb;
-}
-
-// Normalize a duration input to a positive number of seconds, or null (no timer / no phase).
-function normSeconds(s) {
-    return s != null && s > 0 ? s : null;
-}
-
-// Apply the timer config against an anchor time (start's first-beat time, or "now" for a live change),
-// arming the first phase boundary. Shared by start() and the live setters so the two can't diverge.
-function applyTimer(anchorTime, autoStop, interval1Seconds, interval2Seconds) {
-    state.autoStop = !!autoStop;
-    state.interval1 = normSeconds(interval1Seconds);
-    state.interval2 = normSeconds(interval2Seconds);
-    state.phase = 1;
-    state.timerDone = false;
-    // The first boundary is interval1 from the anchor. No interval1 ⇒ no timer at all.
-    state.endTime = state.interval1 != null ? anchorTime + state.interval1 : null;
-}
-
-// Change the timer of the ALREADY-RUNNING metronome without restarting the click. Re-anchors both
-// phases from NOW, so the user can turn auto-stop on/off, set/clear a duration, or add a rest interval
-// mid-practice. No-op if not running (the next start() carries the stored values). autoStop=true with
-// interval1 set = classic auto-stop; autoStop=false = chime-and-continue (one-shot, or drill/rest when
-// interval2 is set).
-export function setTimer(autoStop, interval1Seconds, interval2Seconds) {
-    if (!state.running || !state.ctx) return;
-    applyTimer(state.ctx.currentTime, autoStop, interval1Seconds, interval2Seconds);
-}
-
-// Back-compat shim for the earlier single-duration API: run-for N seconds = classic auto-stop.
-export function setEndTime(runForSeconds) {
-    setTimer(true, runForSeconds, null);
-}
-
-// bpm > 0; beatsPerMeasure >= 1; accentPattern like "1" or "1,3".
-// autoStop true + interval1Seconds = stop at interval1; autoStop false = chime-and-continue (one-shot,
-// or alternate interval1↔interval2 when interval2Seconds is set). null interval1 = run until stopped.
-export async function start(bpm, beatsPerMeasure, accentPattern, autoStop, interval1Seconds, interval2Seconds) {
+// bpm > 0; beatsPerMeasure >= 1; accentPattern like "1" or "1,3"; runForSeconds null = run until stop.
+export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) {
     stopInternal();
     const ctx = ensureContext();
     // iOS/Safari suspend the context until a user gesture; start() is called from a click handler.
@@ -185,7 +86,7 @@ export async function start(bpm, beatsPerMeasure, accentPattern, autoStop, inter
     state.beatIndex = 0;
     state.nextNoteTime = ctx.currentTime + 0.05;
     state.gridStartTime = state.nextNoteTime; // beat 0's exact ctx time — the shared-clock anchor
-    applyTimer(state.nextNoteTime, autoStop, interval1Seconds, interval2Seconds);
+    state.endTime = runForSeconds != null && runForSeconds > 0 ? state.nextNoteTime + runForSeconds : null;
     state.running = true;
     state.timer = setInterval(scheduler, LOOKAHEAD_MS);
 }
