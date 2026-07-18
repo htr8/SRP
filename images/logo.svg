@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+
+  <defs>
+    <linearGradient id="shieldBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d1a2e"/>
+      <stop offset="100%" stop-color="#1a3050"/>
+    </linearGradient>
+    <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <filter id="dotGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Classic heraldic shield: flat top, tapered point at bottom -->
+  <path d="M80 80 L432 80 L432 220 C432 360 350 450 256 488 C162 450 80 360 80 220 Z"
+        fill="url(#shieldBg)" stroke="rgba(96,165,250,0.35)" stroke-width="3"/>
+
+  <!-- Inner rim highlight -->
+  <path d="M90 90 L422 90 L422 220 C422 352 344 440 256 477 C168 440 90 352 90 220 Z"
+        fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.5"/>
+
+  <!-- Probability scatter dots -->
+  <circle cx="128" cy="286" r="7"  fill="#64748b" opacity="0.80"/>
+  <circle cx="184" cy="258" r="8"  fill="#64748b" opacity="0.85"/>
+  <circle cx="244" cy="228" r="9"  fill="#60a5fa" opacity="0.65"/>
+  <circle cx="310" cy="200" r="10" fill="#60a5fa" opacity="0.78"/>
+
+  <!-- Rising success arc -->
+  <path d="M116 296 C158 260 210 228 264 208 C318 188 360 183 398 188"
+        stroke="url(#arcGrad)" stroke-width="9" stroke-linecap="round" fill="none"/>
+
+  <!-- Glowing success endpoint -->
+  <circle cx="398" cy="188" r="15" fill="url(#arcGrad)" filter="url(#dotGlow)"/>
+
+  <!-- Subtle divider -->
+  <line x1="112" y1="320" x2="400" y2="320"
+        stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+  <!-- SR monogram -->
+  <text x="256" y="428"
+        text-anchor="middle"
+        font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="110" font-weight="800" letter-spacing="-4"
+        fill="white">SR</text>
+
+</svg>

@@ -1,0 +1,29 @@
+{
+  "assetFamily": "SimulationEngine browser reference data",
+  "runtimePolicy": {
+    "sameOriginOnly": true,
+    "cdnAllowed": false,
+    "externalRuntimeFetchAllowed": false
+  },
+  "enabledWhen": "EnableWasmSimulationEngine=true and Blazor environment BrowserOpfsEngine",
+  "assets": [
+    {
+      "referenceSetId": "default-2026-04",
+      "effectiveTaxYear": 2026,
+      "sourceVersion": "2026.04.01",
+      "path": "/referencedata/simulationengine/default-2026-04/2026.04.01/reference-set.json"
+    },
+    {
+      "referenceSetId": "starter-2026",
+      "effectiveTaxYear": 2026,
+      "sourceVersion": "0.3.0",
+      "path": "/referencedata/simulationengine/starter-2026/0.3.0/reference-set.json"
+    },
+    {
+      "referenceSetId": "starter-2027",
+      "effectiveTaxYear": 2027,
+      "sourceVersion": "0.4.0",
+      "path": "/referencedata/simulationengine/starter-2027/0.4.0/reference-set.json"
+    }
+  ]
+}

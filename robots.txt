@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://successrate.app/sitemap.xml
