@@ -110,6 +110,27 @@ export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) 
     state.timer = setInterval(scheduler, LOOKAHEAD_MS);
 }
 
+export function updateSettings(bpm, beatsPerMeasure, accentPattern) {
+    const ctx = ensureContext();
+    const oldSecondsPerBeat = state.secondsPerBeat;
+    const newSecondsPerBeat = 60.0 / (bpm > 0 ? bpm : 120);
+    const elapsed = state.running ? ctx.currentTime - state.gridStartTime : 0;
+    const currentBeatIndex = oldSecondsPerBeat > 0
+        ? Math.max(0, Math.floor(elapsed / oldSecondsPerBeat))
+        : 0;
+
+    state.secondsPerBeat = newSecondsPerBeat;
+    state.beatsPerMeasure = beatsPerMeasure >= 1 ? beatsPerMeasure : 1;
+    state.accents = parseAccents(accentPattern, state.beatsPerMeasure);
+
+    if (state.running) {
+        // Keep the visual/current beat stable across a live tempo edit. Already-scheduled clicks inside
+        // the short lookahead window cannot be unscheduled, so the new tempo takes over on subsequent
+        // scheduled beats without rewriting the run's stop time.
+        state.gridStartTime = ctx.currentTime - (currentBeatIndex * newSecondsPerBeat);
+    }
+}
+
 export async function playCompletionChime() {
     const ctx = ensureContext();
     if (ctx.state === 'suspended') await ctx.resume();

@@ -319,6 +319,12 @@ export async function startMonitoring(deviceId, inputGainDb = 0) {
     await startInputMonitor(null, deviceId, inputGainDb);
 }
 
+export function setMonitorGain(inputGainDb = 0) {
+    if (meter.gainNode) {
+        meter.gainNode.gain.value = gainDbToLinear(inputGainDb);
+    }
+}
+
 async function startInputMonitor(canvas, deviceId, inputGainDb = 0) {
     stopInputMeter(); // re-arm cleanly on device change
 
