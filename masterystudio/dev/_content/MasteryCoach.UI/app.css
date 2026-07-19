@@ -3318,6 +3318,32 @@ kbd {
     border-right: 1px solid var(--line);
 }
 
+button.metronome-step-label {
+    width: auto;
+    padding: 0;
+    background: transparent;
+    border-top: none;
+    border-bottom: none;
+    border-radius: 0;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+}
+
+.metronome-step-label-adjustable:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.metronome-step-label-adjustable:disabled {
+    color: var(--muted);
+    cursor: default;
+}
+
+.metronome-step-label-adjustable:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
 .metronome-meter {
     display: flex;
     align-items: center;
@@ -4067,20 +4093,26 @@ kbd {
     border-radius: 999px;
 }
 
-.metronome-repeat-control button {
-    width: 20px;
+.metronome-repeat-control .metronome-step-btn,
+.metronome-repeat-control .metronome-step-label {
+    width: 100%;
     height: 22px;
-    color: var(--text);
+    padding: 0;
     font-size: 0.72rem;
+}
+
+.metronome-repeat-control .metronome-step-btn {
+    color: var(--text);
     font-weight: 900;
     background: transparent;
     border: none;
     cursor: pointer;
 }
 
-.metronome-repeat-control strong {
+.metronome-repeat-control .metronome-step-label {
     color: #f6c23a;
     font-size: 0.74rem;
+    font-weight: 900;
     line-height: 1;
     text-align: center;
 }
@@ -4229,6 +4261,27 @@ kbd {
 .metronome-config-stepper .metronome-step-btn,
 .metronome-config-stepper .metronome-step-label {
     height: 38px;
+}
+
+.metronome-design-tempo-row {
+    align-items: flex-start;
+}
+
+.metronome-design-tempo-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.metronome-design-tempo-stepper {
+    grid-template-columns: 32px 34px 32px;
+    height: 34px;
+}
+
+.metronome-design-tempo-stepper .metronome-step-btn,
+.metronome-design-tempo-stepper .metronome-step-label {
+    height: 34px;
 }
 
 .metronome-settings-toggle {
@@ -4576,13 +4629,13 @@ kbd {
         height: 20px;
     }
 
-    .metronome-repeat-control button {
-        width: 17px;
+    .metronome-repeat-control .metronome-step-btn,
+    .metronome-repeat-control .metronome-step-label {
         height: 20px;
         font-size: 0.66rem;
     }
 
-    .metronome-repeat-control strong {
+    .metronome-repeat-control .metronome-step-label {
         font-size: 0.68rem;
     }
 
