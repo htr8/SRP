@@ -3512,7 +3512,7 @@ button.metronome-step-label {
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.metronome-current-step > div {
+.metronome-current-step > div:first-child {
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -3556,16 +3556,23 @@ button.metronome-step-label {
 }
 
 .metronome-drill-picker {
+    box-sizing: border-box;
     flex: 0 1 12.5rem;
     width: 12.5rem;
     min-width: 9rem;
     height: 38px;
+    min-height: 0;
+    max-height: 38px;
     padding: 0 2rem 0 0.75rem;
+    margin: 0;
     color: var(--text);
     font-weight: 700;
+    line-height: 1;
     background: rgba(255, 255, 255, 0.045);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 8px;
+    -webkit-appearance: none;
+    appearance: none;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4070,7 +4077,7 @@ button.metronome-step-label {
     align-items: center;
     justify-content: center;
     height: 22px;
-    min-width: 34px;
+    min-width: 44px;
     padding: 0 0.45rem;
     color: #f6c23a;
     font-size: 0.76rem;
@@ -4084,7 +4091,7 @@ button.metronome-step-label {
 
 .metronome-repeat-control {
     display: grid;
-    grid-template-columns: 20px 22px 20px;
+    grid-template-columns: 20px 38px 20px;
     align-items: center;
     height: 22px;
     overflow: hidden;
@@ -4321,7 +4328,7 @@ button.metronome-step-label {
         padding: 0.38rem 0.65rem;
     }
 
-    .metronome-current-step > div {
+    .metronome-current-step > div:first-child {
         gap: 0.04rem;
     }
 
@@ -4347,6 +4354,7 @@ button.metronome-step-label {
         width: min(9.5rem, 34vw);
         min-width: 6.25rem;
         height: 30px;
+        max-height: 30px;
         padding-left: 0.5rem;
         padding-right: 1.5rem;
         font-size: 0.72rem;
@@ -4619,13 +4627,13 @@ button.metronome-step-label {
     }
 
     .metronome-repeat-pill {
-        min-width: 31px;
+        min-width: 39px;
         height: 19px;
         font-size: 0.68rem;
     }
 
     .metronome-repeat-control {
-        grid-template-columns: 17px 20px 17px;
+        grid-template-columns: 17px 34px 17px;
         height: 20px;
     }
 
