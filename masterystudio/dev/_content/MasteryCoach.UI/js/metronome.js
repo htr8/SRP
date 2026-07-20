@@ -2,15 +2,24 @@
 // replacing the previous Windows-only native metronome.
 //
 // Uses the standard lookahead scheduler: a timer wakes every ~25ms and schedules any beats that
-// fall inside the next 100ms window, so click timing is sample-accurate and does not drift with
-// JS timer jitter. Each click is a short oscillator burst (accent = higher pitch + louder).
-
+// fall inside the next SCHEDULE_AHEAD window, so click timing is sample-accurate and does not
+// drift with JS timer jitter. Each click is a short oscillator burst (accent = higher pitch +
+// louder).
+//
+// Background-tab survival: browsers throttle setInterval on a hidden/backgrounded tab (Chrome can
+// drop to ~1 tick/minute after several minutes hidden). AudioContext.currentTime itself never
+// drifts while backgrounded, but a short SCHEDULE_AHEAD window empties out between throttled ticks,
+// so clicks stop firing until the tab is foregrounded again — heard as the metronome "slowing to a
+// crawl" (a long gap, then a burst of catch-up clicks). SCHEDULE_AHEAD is deliberately generous
+// (several seconds) so one scheduler tick, however delayed, always has enough already-scheduled
+// audio queued to bridge the gap; scheduling seconds ahead costs nothing since every voice is
+// scheduled by absolute AudioContext time (see scheduleClick), not wall-clock time.
 import { getSharedContext } from './audioContext.js';
 import { scheduleClickVoice } from './countIn.js';
 import { ensureMasterPanner } from './engineCommon.js';
 
-const SCHEDULE_AHEAD = 0.1;   // seconds of audio scheduled in advance
-const LOOKAHEAD_MS = 25;      // how often the scheduler wakes
+const SCHEDULE_AHEAD = 3.0;   // seconds of audio scheduled in advance
+const LOOKAHEAD_MS = 25;      // how often the scheduler wakes (foreground cadence; throttled when hidden)
 
 const state = {
     ctx: null,
@@ -23,6 +32,8 @@ const state = {
     beatsPerMeasure: 4,
     accents: new Set([1]),
     endTime: null,            // AudioContext time to auto-stop, or null
+    endTimer: null,           // wall-clock setTimeout that fires notifyEnded() at the real end time
+    pendingClicks: [],        // {osc, time} not yet sounded — see updateSettings()
     dotnet: null,
     pan: 0,
 };
@@ -48,8 +59,37 @@ function outputNode() {
 }
 
 // The click voice itself is shared with the count-in (countIn.js) so the two never drift in timbre.
+// Tracked in state.pendingClicks (with its start time) so a live tempo edit (updateSettings) can
+// cancel whatever was already scheduled at the OLD tempo inside the wide SCHEDULE_AHEAD window,
+// instead of leaving up to SCHEDULE_AHEAD seconds of stale-tempo clicks to play out audibly.
 function scheduleClick(beatInMeasure, time) {
-    scheduleClickVoice(state.ctx, time, state.accents.has(beatInMeasure), outputNode());
+    const osc = scheduleClickVoice(state.ctx, time, state.accents.has(beatInMeasure), outputNode());
+    state.pendingClicks.push({ osc, time });
+}
+
+// Drops entries for clicks that have already started sounding (nothing to cancel there — nothing
+// left pending) so the array stays bounded across a long run instead of growing forever.
+function prunePendingClicks(now) {
+    while (state.pendingClicks.length > 0 && state.pendingClicks[0].time <= now) {
+        state.pendingClicks.shift();
+    }
+}
+
+// Cancels every click still scheduled STRICTLY in the future (its start time has not yet arrived).
+// A click already sounding or finished is left alone — stopping it now would cut off audio the user
+// already heard, or is a no-op. Used by updateSettings() so a live tempo edit takes effect
+// immediately instead of after up to SCHEDULE_AHEAD seconds of stale-tempo clicks.
+function cancelFutureClicks() {
+    const now = state.ctx.currentTime;
+    const remaining = [];
+    for (const click of state.pendingClicks) {
+        if (click.time > now) {
+            try { click.osc.stop(); click.osc.disconnect(); } catch { /* already stopped */ }
+        } else {
+            remaining.push(click); // sounding or already past — leave it alone
+        }
+    }
+    state.pendingClicks = remaining;
 }
 
 function scheduleChimeVoice(time, frequency, gainValue, duration) {
@@ -67,10 +107,18 @@ function scheduleChimeVoice(time, frequency, gainValue, duration) {
 
 function scheduler() {
     const ctx = state.ctx;
+    prunePendingClicks(ctx.currentTime);
     while (state.running && state.nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD) {
         if (state.endTime != null && state.nextNoteTime >= state.endTime) {
-            stopInternal();
-            notifyEnded();
+            // Stop SCHEDULING further clicks now, but notifyEnded() fires from the endTimer armed in
+            // start() at the run's actual (wall-clock-equivalent) end time — not here, which with a
+            // multi-second SCHEDULE_AHEAD would fire up to SCHEDULE_AHEAD seconds before the last
+            // already-scheduled click has actually sounded.
+            state.running = false;
+            if (state.timer) {
+                clearInterval(state.timer);
+                state.timer = null;
+            }
             return;
         }
         const beatInMeasure = (state.beatIndex % state.beatsPerMeasure) + 1;
@@ -108,6 +156,20 @@ export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) 
     state.endTime = runForSeconds != null && runForSeconds > 0 ? state.nextNoteTime + runForSeconds : null;
     state.running = true;
     state.timer = setInterval(scheduler, LOOKAHEAD_MS);
+
+    // Fires notifyEnded() at the run's REAL end (wall-clock-equivalent), independent of how far
+    // ahead the scheduler has already committed clicks — see the comment on scheduler()'s endTime
+    // branch. setTimeout drifts negligibly over a single run's length and, like the scheduler
+    // interval, is fine to be throttled while backgrounded (the notification simply lands late,
+    // same as the scheduler catching up).
+    if (state.endTime != null) {
+        state.endTimer = setTimeout(() => {
+            state.endTimer = null;
+            if (!state.running) return; // already stopped some other way (e.g. explicit stop())
+            stopInternal();
+            notifyEnded();
+        }, Math.max(0, runForSeconds) * 1000);
+    }
 }
 
 export function updateSettings(bpm, beatsPerMeasure, accentPattern) {
@@ -124,10 +186,15 @@ export function updateSettings(bpm, beatsPerMeasure, accentPattern) {
     state.accents = parseAccents(accentPattern, state.beatsPerMeasure);
 
     if (state.running) {
-        // Keep the visual/current beat stable across a live tempo edit. Already-scheduled clicks inside
-        // the short lookahead window cannot be unscheduled, so the new tempo takes over on subsequent
-        // scheduled beats without rewriting the run's stop time.
+        // Keep the visual/current beat stable across a live tempo edit.
         state.gridStartTime = ctx.currentTime - (currentBeatIndex * newSecondsPerBeat);
+        // Cancel whatever was scheduled at the OLD tempo but hasn't sounded yet — with the wide
+        // SCHEDULE_AHEAD window that can be several seconds' worth of clicks — then re-arm the
+        // scheduler from "now" at the new tempo so the audible change is immediate, matching the
+        // visual beat indicator this function just re-anchored above.
+        cancelFutureClicks();
+        state.nextNoteTime = ctx.currentTime + 0.05;
+        state.beatIndex = currentBeatIndex;
     }
 }
 
@@ -173,6 +240,17 @@ function stopInternal() {
         clearInterval(state.timer);
         state.timer = null;
     }
+    if (state.endTimer) {
+        clearTimeout(state.endTimer);
+        state.endTimer = null;
+    }
+    // With the wide SCHEDULE_AHEAD window, up to several seconds of clicks can already be scheduled
+    // (Web Audio does not cancel on its own) — stop them so a Stop/Reset is heard immediately rather
+    // than continuing to click for up to SCHEDULE_AHEAD seconds after the UI shows it stopped.
+    for (const click of state.pendingClicks) {
+        try { click.osc.stop(); click.osc.disconnect(); } catch { /* already stopped */ }
+    }
+    state.pendingClicks = [];
 }
 
 export function isRunning() {

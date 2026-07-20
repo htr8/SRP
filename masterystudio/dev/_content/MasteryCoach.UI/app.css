@@ -3960,6 +3960,18 @@ button.metronome-step-label {
     gap: 1rem;
 }
 
+.metronome-saved-steps-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.metronome-insert-step {
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
 .metronome-saved-steps-head strong {
     color: var(--text);
     font-size: 0.85rem;
@@ -4382,7 +4394,8 @@ button.metronome-step-label {
     }
 
     .metronome-save-setup,
-    .metronome-add-step {
+    .metronome-add-step,
+    .metronome-insert-step {
         min-height: 30px;
         padding-inline: 0.65rem;
         font-size: 0.74rem;
