@@ -36,6 +36,8 @@ const state = {
     pendingClicks: [],        // {osc, time} not yet sounded — see updateSettings()
     dotnet: null,
     pan: 0,
+    volumeGain: null,         // GainNode boosting the click ONLY, upstream of the shared master panner
+    volumeMultiplier: 1,      // volumePercent / 100, applied to volumeGain.gain — see setVolume()
 };
 
 export function setEndedCallback(dotnetRef) {
@@ -54,8 +56,33 @@ function ensureContext() {
     return state.ctx;
 }
 
+// A dedicated GainNode for the click ONLY (upstream of the shared master panner, which other
+// engines also route through) — boosting it never touches playback/stem volume. Lazily created on
+// first use, same pattern as ensureMasterPanner.
+function ensureVolumeNode() {
+    if (!state.volumeGain) {
+        const ctx = ensureContext();
+        state.volumeGain = ctx.createGain();
+        state.volumeGain.gain.value = state.volumeMultiplier;
+        state.volumeGain.connect(ensureMasterPanner(ctx, state));
+    }
+    return state.volumeGain;
+}
+
 function outputNode() {
-    return ensureMasterPanner(ensureContext(), state);
+    return ensureVolumeNode();
+}
+
+// volumePercent: 100 = the engine's default (pre-boost) click level, 200 = roughly double. Applied
+// immediately (including to clicks already scheduled but not yet sounding — a plain gain.value
+// write takes effect at the AudioContext's next processing block, well before SCHEDULE_AHEAD's
+// multi-second horizon could make that lag audible).
+function setVolume(volumePercent) {
+    const percent = Number.isFinite(volumePercent) && volumePercent >= 0 ? volumePercent : 100;
+    state.volumeMultiplier = percent / 100;
+    if (state.volumeGain) {
+        state.volumeGain.gain.value = state.volumeMultiplier;
+    }
 }
 
 // The click voice itself is shared with the count-in (countIn.js) so the two never drift in timbre.
@@ -140,8 +167,9 @@ function parseAccents(pattern, beatsPerMeasure) {
     return set;
 }
 
-// bpm > 0; beatsPerMeasure >= 1; accentPattern like "1" or "1,3"; runForSeconds null = run until stop.
-export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) {
+// bpm > 0; beatsPerMeasure >= 1; accentPattern like "1" or "1,3"; runForSeconds null = run until
+// stop; volumePercent (optional) as documented on setVolume() — 100 if omitted.
+export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds, volumePercent) {
     stopInternal();
     const ctx = ensureContext();
     // iOS/Safari suspend the context until a user gesture; start() is called from a click handler.
@@ -150,6 +178,7 @@ export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) 
     state.secondsPerBeat = 60.0 / (bpm > 0 ? bpm : 120);
     state.beatsPerMeasure = beatsPerMeasure >= 1 ? beatsPerMeasure : 1;
     state.accents = parseAccents(accentPattern, state.beatsPerMeasure);
+    setVolume(volumePercent);
     state.beatIndex = 0;
     state.nextNoteTime = ctx.currentTime + 0.05;
     state.gridStartTime = state.nextNoteTime; // beat 0's exact ctx time — the shared-clock anchor
@@ -172,7 +201,7 @@ export async function start(bpm, beatsPerMeasure, accentPattern, runForSeconds) 
     }
 }
 
-export function updateSettings(bpm, beatsPerMeasure, accentPattern) {
+export function updateSettings(bpm, beatsPerMeasure, accentPattern, volumePercent) {
     const ctx = ensureContext();
     const oldSecondsPerBeat = state.secondsPerBeat;
     const newSecondsPerBeat = 60.0 / (bpm > 0 ? bpm : 120);
@@ -184,6 +213,7 @@ export function updateSettings(bpm, beatsPerMeasure, accentPattern) {
     state.secondsPerBeat = newSecondsPerBeat;
     state.beatsPerMeasure = beatsPerMeasure >= 1 ? beatsPerMeasure : 1;
     state.accents = parseAccents(accentPattern, state.beatsPerMeasure);
+    setVolume(volumePercent);
 
     if (state.running) {
         // Keep the visual/current beat stable across a live tempo edit.
