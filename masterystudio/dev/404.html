@@ -34,7 +34,7 @@
     <meta name="theme-color" content="#141416" />
     <!-- Blazor scoped-CSS bundle link intentionally removed: neither MasteryCoach.Web nor
          MasteryCoach.UI defines any .razor.css scoped styles, so the bundle is never emitted and the
-         link 404'd on every navigation — each 404 firing a client_error analytics event (Umami
+         link 404'd on every navigation â€” each 404 firing a client_error analytics event (Umami
          flood, 2026-07-12). Real styles load via css/app.css + _content/MasteryCoach.UI/app.css
          above. If scoped CSS is ever added, restore:
          <link href="MasteryCoach.Web.styles.css" rel="stylesheet" /> -->
@@ -54,19 +54,19 @@
         <div class="error-title">An unhandled error has occurred.</div>
         <pre id="blazor-error-detail" class="error-detail"></pre>
         <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
+        <span class="dismiss">ðŸ—™</span>
     </div>
-    <!-- COOP/COEP shim (coi-serviceworker 0.1.7, MIT, vendored — see lib/ort/VENDORED.md): grants
+    <!-- COOP/COEP shim (coi-serviceworker 0.1.7, MIT, vendored â€” see lib/ort/VENDORED.md): grants
          crossOriginIsolated on hosts that can't send the headers (GitHub Pages), which unlocks
-         SharedArrayBuffer → multi-threaded WASM for in-browser stem separation (≈3.5x faster than
+         SharedArrayBuffer â†’ multi-threaded WASM for in-browser stem separation (â‰ˆ3.5x faster than
          the single-thread fallback). Triggers ONE automatic reload on a first visit. Must live at
          the app root: a service worker only controls its own directory's scope. -->
     <script>
         // Boot gate for the shim below: on the very FIRST visit it registers its service worker
-        // and reloads the page — a Blazor boot racing that reload gets torn down mid-fetch and
+        // and reloads the page â€” a Blazor boot racing that reload gets torn down mid-fetch and
         // logs a spurious blazor.boot.json error into the diagnostics funnel (review finding).
         // When the reload is coming (secure context, service workers available, page not yet
-        // controlled), hold Blazor.start() — the reload wins well inside the grace period. If the
+        // controlled), hold Blazor.start() â€” the reload wins well inside the grace period. If the
         // registration failed instead (private mode, policy), the timeout boots normally. Every
         // controlled/isolated visit resolves instantly.
         window.__mcBootGate = new Promise(function (resolve) {
@@ -81,10 +81,10 @@
         });
 
         // COEP mode for the shim below. DEFAULT 'require-corp' blocks any cross-origin subresource
-        // that lacks a Cross-Origin-Resource-Policy header — which silently killed the Umami
+        // that lacks a Cross-Origin-Resource-Policy header â€” which silently killed the Umami
         // analytics script (cloud.umami.is sends ACAO:* but no CORP). 'credentialless' still grants
         // crossOriginIsolated (so multi-threaded stem separation keeps working) while allowing
-        // no-CORP cross-origin fetches WITHOUT credentials — exactly right for an anonymous
+        // no-CORP cross-origin fetches WITHOUT credentials â€” exactly right for an anonymous
         // analytics beacon. Tradeoff: credentialless is Chromium/Firefox only; older Safari/iOS
         // fall back to single-thread separation (already device-gated). Must be set BEFORE the shim.
         window.coi = { coepCredentialless: function () { return true; } };
