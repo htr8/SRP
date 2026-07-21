@@ -159,11 +159,14 @@ export async function writeFileStream(path, streamRef) {
         const { done, value } = await reader.read();
         if (done) break;
         const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+        const chunkLength = bytes.byteLength;
         const buffer = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
             ? bytes.buffer
             : bytes.slice().buffer;
         await workerOp({ op: 'writeChunk', path, offset, truncate: !wroteAny, buffer }, [buffer]);
-        offset += bytes.byteLength;
+        // Transferring buffer detaches it, which can make bytes.byteLength read back as 0.
+        // Capture the length first so later chunks append instead of overwriting byte 0.
+        offset += chunkLength;
         wroteAny = true;
     }
 
