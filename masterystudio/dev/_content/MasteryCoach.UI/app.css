@@ -5092,6 +5092,28 @@ button.metronome-step-label {
 .sound-row > *,
 .toolbar-scrollrow-inline > * { flex: 0 0 auto; }
 
+.loop-controls-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.loop-controls-stack .control-toolbar-wrap {
+    margin-top: 0;
+}
+.loop-drawer-row {
+    padding: 2px 0 4px;
+}
+.toolbar-inline-note {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 10px;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 /* A [−] value [+] stepper group, styled from the transport-button family (--panel-2 / --line). */
 .stepper {
     display: inline-flex;
@@ -5313,6 +5335,14 @@ button.metronome-step-label {
 .saved-loops-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .saved-loops-name { font-weight: 600; }
 .saved-loops-time { font-size: 11px; color: var(--muted); }
+.loop-drawer-item.saved-loops-item {
+    height: 30px;
+    padding: 0 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+}
+.loop-drawer-item.saved-loops-item:hover:not(:disabled) { border-color: var(--accent); }
 
 .marks-menu {
     position: relative;
@@ -5380,6 +5410,16 @@ button.metronome-step-label {
 }
 .marks-chip.on { color: var(--text); border-color: var(--skip-mark-edge); background: rgba(255, 138, 91, 0.18); }
 .marks-delete:hover:not(:disabled) { color: #fff; border-color: var(--danger, #c0524a); background: var(--danger, #c0524a); }
+.marks-drawer-item {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: minmax(110px, 1fr) auto auto;
+    min-width: 230px;
+    max-width: 320px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+}
+.marks-drawer-item:hover { border-color: var(--accent); }
 .mark-name-input {
     flex: 0 0 auto;
     width: 132px;

@@ -158,6 +158,10 @@ export function update(id, model) {
         }
         inst.view = { start: incoming.start, end: incoming.end };
     }
+    if (inst.model && inst.model.centerLock && inst.view && isZoomed(inst) && !inst.drag) {
+        const span = inst.view.end - inst.view.start;
+        setFixedHeadView(inst, inst.localPos, span, true, true);
+    }
 }
 
 const VIEW_EPS = 0.002; // seconds; below this two windows are "the same" (ignore the pan/follow echo)
@@ -195,6 +199,49 @@ function setLocalView(inst, start, end, settle, allowOverscroll) {
     start = Math.max(-margin, Math.min(start, dur - span + margin));
     inst.view = { start, end: start + span };
     notifyView(inst, settle);
+}
+
+function fixedHeadStart(inst, position, span) {
+    const dur = (inst.model && inst.model.duration) || 0;
+    if (dur <= VIEW_EPS || span <= VIEW_EPS) return 0;
+    const halfSpan = span / 2;
+    const minStart = -halfSpan;
+    const maxStart = Math.max(minStart, dur - halfSpan);
+    return Math.max(minStart, Math.min(position - halfSpan, maxStart));
+}
+
+function setFixedHeadView(inst, position, span, settle, follow) {
+    const dur = (inst.model && inst.model.duration) || 0;
+    span = Math.min(span, dur);
+    if (span <= VIEW_EPS) return false;
+    const start = fixedHeadStart(inst, position, span);
+    const next = { start, end: start + span };
+    if (viewsEqual(next, inst.view)) return false;
+    inst.view = next;
+    notifyView(inst, settle, follow);
+    return true;
+}
+
+// Center-lock scrub: the playhead stays visually fixed at the centre while the waveform moves under it.
+// The view may extend half a window past the media edges so the fixed centre line can land exactly on
+// 0:00 or the track end.
+function setFixedHeadScrubView(inst, start, settle) {
+    const dur = (inst.model && inst.model.duration) || 0;
+    const v = view(inst);
+    const span = Math.min(v.end - v.start, dur);
+    if (span <= VIEW_EPS) return;
+    start = fixedHeadStart(inst, start + span / 2, span);
+    inst.view = { start, end: start + span };
+    inst.localPos = Math.max(0, Math.min(dur, start + span / 2));
+    notifyView(inst, settle);
+}
+
+function notifyScrubSeek(inst, settle) {
+    if (!inst.dotnet) return;
+    const now = performance.now();
+    if (!settle && now - (inst.lastScrubSeekNotify || 0) < 80) return;
+    inst.lastScrubSeekNotify = now;
+    safeInvoke(inst.dotnet, 'OnSeekJs', inst.localPos);
 }
 
 // Report the live window to Blazor. Throttled to ~10/sec during continuous motion (pan), with a
@@ -245,20 +292,15 @@ function frame(id, ts) {
 // peaks debounce (the host keeps whole-track peaks while following; see the `follow` flag on the notify).
 // Under reduced motion this still runs — just off the coarser position syncs, so it steps.
 function followPlayhead(inst) {
-    if (!isZoomed(inst) || (inst.drag && inst.drag.kind === 'pan')) return; // don't fight a live pan
+    if (!isZoomed(inst) || (inst.drag && (inst.drag.kind === 'pan' || inst.drag.kind === 'scrub'))) return; // don't fight a live gesture
     const m = inst.model, v = inst.view, span = v.end - v.start;
     const dur = (m && m.duration) || 0;
 
-    // Center-lock mode: while PLAYING, keep the playhead pinned at the horizontal centre and scroll the
-    // window under it every frame — the classic DAW feel. Clamped to [0, duration], so near the very
-    // start/end the playhead drifts off-centre rather than showing empty space beyond the track. Paused,
-    // it falls through to the page-turn re-centre below (so an off-view seek still brings the view back).
+    // Center-lock mode: keep the playhead pinned at the horizontal centre and scroll the window under it.
+    // The view may extend half a visible span before/after the track, so 0:00 and the track end still
+    // land on the fixed centre line instead of being pinned to the canvas edges.
     if (m.centerLock && m.playing) {
-        let ns = inst.localPos - span / 2;
-        ns = Math.max(0, Math.min(ns, dur - span));
-        if (Math.abs(ns - v.start) < VIEW_EPS) return; // sub-epsilon move (e.g. parked at an edge) — skip
-        inst.view = { start: ns, end: ns + span };
-        notifyView(inst, false, true);                 // follow=true → host keeps whole-track peaks (no re-pull)
+        setFixedHeadView(inst, inst.localPos, span, false, true);
         return;
     }
 
@@ -612,12 +654,13 @@ function addPointerHandlers(inst) {
             return;
         }
         const edge = hitLoopEdge(inst, e.clientX, e.pointerType);
-        // Pan (grab-and-slide the window) sits ABOVE loop-create/seek but BELOW boundary/loop-edge drags,
-        // and only exists WHEN ZOOMED. Then a plain drag (mouse or touch) pans; a tap/click still seeks;
-        // an existing loop's edges are still draggable (edge != null resizes it). At full-track view this
-        // never triggers, so loop-create-by-drag and every other gesture are unchanged.
+        // Pan/scrub sits ABOVE loop-create/seek but BELOW boundary/loop-edge drags, and only exists WHEN
+        // ZOOMED. With center-lock on, the playhead stays fixed and the wave drags underneath it,
+        // seeking to the time under the fixed head. Otherwise a plain drag pans the view. A tap/click
+        // still seeks; existing loop edges remain draggable.
         if (edge == null && isZoomed(inst)) {
-            inst.drag = { kind: 'pan', panStartX: e.clientX, t0: t, view0: { ...inst.view }, moved: false };
+            const kind = inst.model && inst.model.centerLock ? 'scrub' : 'pan';
+            inst.drag = { kind, panStartX: e.clientX, t0: t, view0: { ...inst.view }, moved: false };
             c.style.cursor = 'grabbing';
             c.classList && c.classList.add('panning');
             return;
@@ -652,6 +695,18 @@ function addPointerHandlers(inst) {
             const dtSec = ((e.clientX - d.panStartX) / width) * span;
             if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
             setLocalView(inst, d.view0.start - dtSec, d.view0.end - dtSec, false, true); // manual pan → overscroll allowed
+            return;
+        }
+
+        if (d.kind === 'scrub') {
+            // Fixed-head scrub: drag right rewinds, drag left fast-forwards. The waveform moves behind
+            // the centre playhead, and the engine is seeked to the time now under that fixed head.
+            const width = inst.canvas.clientWidth || 1;
+            const span = d.view0.end - d.view0.start;
+            const dtSec = ((e.clientX - d.panStartX) / width) * span;
+            if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
+            setFixedHeadScrubView(inst, d.view0.start - dtSec, false);
+            if (d.moved) notifyScrubSeek(inst, false);
             return;
         }
 
@@ -698,6 +753,20 @@ function addPointerHandlers(inst) {
                 if (inst.view) notifyView(inst, true);
             } else if (inst.dotnet) {
                 // Didn't move → a tap/click on the zoomed wave still seeks (pan never steals the seek).
+                inst.localPos = d.t0;
+                safeInvoke(inst.dotnet, 'OnSeekJs', d.t0);
+            }
+            inst.drag = null;
+            return;
+        }
+
+        if (d.kind === 'scrub') {
+            c.classList && c.classList.remove('panning');
+            c.style.cursor = isZoomed(inst) ? 'grab' : 'text';
+            if (d.moved) {
+                if (inst.view) notifyView(inst, true);
+                notifyScrubSeek(inst, true);
+            } else if (inst.dotnet) {
                 inst.localPos = d.t0;
                 safeInvoke(inst.dotnet, 'OnSeekJs', d.t0);
             }
