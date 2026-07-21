@@ -58,6 +58,7 @@ export function attach(canvas, dotnet) {
         view: null,
         lastViewNotify: 0,      // throttle clock for notifyView
         trailingNotify: 0,      // pending trailing-edge notify timer id
+        hoverLoopEdge: null,     // visual affordance for the nearest active-loop grab handle
     };
     instances.set(id, inst);
     addPointerHandlers(inst);
@@ -424,18 +425,18 @@ function paint(inst) {
     }
 
     // Foreground loop handles: keep them visible across the full waveform height, even on loud/dense
-    // passages whose filled peaks would otherwise cover the underlay.
+    // passages whose filled peaks would otherwise cover the underlay. The caps make the handles read as
+    // draggable targets instead of hairline markers, matching the larger touch hit target below.
     if (m.loop && m.loop.end != null) {
         const x0 = Math.round(timeToX(m.loop.start));
         const x1 = Math.round(timeToX(m.loop.end));
-        ctx.fillStyle = cssVar(canvas, '--loop-edge', '#f0c35a');
-        ctx.fillRect(x0 - 1, 0, 3, h);
-        ctx.fillRect(x1 - 1, 0, 3, h);
+        const loopEdge = cssVar(canvas, '--loop-edge', '#f0c35a');
+        const activeEdge = inst.drag && (inst.drag.edge === 'start' || inst.drag.edge === 'end')
+            ? inst.drag.edge
+            : inst.hoverLoopEdge;
+        drawLoopHandle(ctx, x0, h, loopEdge, activeEdge === 'start');
+        drawLoopHandle(ctx, x1, h, loopEdge, activeEdge === 'end');
     }
-
-    // playhead
-    ctx.fillStyle = cPlayed;
-    ctx.fillRect(Math.round(playedX) - 1, 0, 2, h);
 
     // Edit mode: draw a draggable grab-line at each interior section boundary, plus a live preview
     // line while one is being dragged. The lane above shows section names/colours; this is the handle.
@@ -463,6 +464,45 @@ function paint(inst) {
             ctx.fillRect(px - 1, 0, 2, h);
         }
     }
+
+    // Playhead: draw last so the current audible position is never hidden by peaks, loop bands, saved
+    // markers, or section guides. The dark halo keeps it legible over bright played waveform columns.
+    drawPlayhead(ctx, Math.round(playedX), h, cssVar(canvas, '--wave-playhead', '#f8fafc'));
+}
+
+function drawLoopHandle(ctx, x, h, color, active) {
+    if (active) {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.16;
+        ctx.fillRect(x - 14, 0, 28, h);
+        ctx.globalAlpha = 1;
+    }
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x - 2, 0, 4, h);
+    ctx.fillRect(x - 9, 0, 18, 6);
+    ctx.fillRect(x - 9, h - 6, 18, 6);
+
+    if (active) {
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(x - 1, 6, 2, Math.max(1, h - 12));
+        ctx.globalAlpha = 1;
+    }
+}
+
+function drawPlayhead(ctx, x, h, color) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x - 3, 0, 7, h);
+    ctx.fillStyle = color;
+    ctx.fillRect(x - 1, 0, 3, h);
+    ctx.fillStyle = '#f0c35a';
+    ctx.beginPath();
+    ctx.moveTo(x - 6, 0);
+    ctx.lineTo(x + 6, 0);
+    ctx.lineTo(x, 8);
+    ctx.closePath();
+    ctx.fill();
 }
 
 function xToTime(inst, clientX) {
@@ -492,15 +532,27 @@ function snapTime(inst, t) {
     return best;
 }
 
-const EDGE_PX = 6;
+const SECTION_EDGE_PX = 8;
+const LOOP_EDGE_MOUSE_PX = 12;
+const LOOP_EDGE_TOUCH_PX = 28;
 
-function hitLoopEdge(inst, clientX) {
+function loopEdgeHitPx(pointerType) {
+    return pointerType === 'touch' || pointerType === 'pen'
+        ? LOOP_EDGE_TOUCH_PX
+        : LOOP_EDGE_MOUSE_PX;
+}
+
+function hitLoopEdge(inst, clientX, pointerType) {
     const m = inst.model;
     if (!m || !m.loop || m.loop.end == null) return null;
     const x = clientX - inst.canvas.getBoundingClientRect().left;
-    if (Math.abs(x - timeToXpx(inst, m.loop.start)) <= EDGE_PX) return 'start';
-    if (Math.abs(x - timeToXpx(inst, m.loop.end)) <= EDGE_PX) return 'end';
-    const inside = x > timeToXpx(inst, m.loop.start) && x < timeToXpx(inst, m.loop.end);
+    const xStart = timeToXpx(inst, m.loop.start);
+    const xEnd = timeToXpx(inst, m.loop.end);
+    const dStart = Math.abs(x - xStart);
+    const dEnd = Math.abs(x - xEnd);
+    const edgePx = loopEdgeHitPx(pointerType);
+    if (Math.min(dStart, dEnd) <= edgePx) return dStart <= dEnd ? 'start' : 'end';
+    const inside = x > xStart && x < xEnd;
     return inside ? 'move' : null;
 }
 
@@ -510,7 +562,7 @@ function commitLoop(inst, start, end) {
 }
 
 // In edit mode, the nearest INTERIOR section boundary (a time shared by two adjacent sections) to the
-// pointer, if within EDGE_PX. The track-start/end aren't draggable. Returns the boundary time or null.
+// pointer, if within SECTION_EDGE_PX. The track-start/end aren't draggable. Returns the boundary time or null.
 function hitSectionBoundary(inst, clientX) {
     const m = inst.model;
     // The model can be null before the first update() (or momentarily during a resize/reflow, e.g. a
@@ -518,7 +570,7 @@ function hitSectionBoundary(inst, clientX) {
     if (!m || !m.editSections || !m.boundaries || m.boundaries.length === 0) return null;
     const x = clientX - inst.canvas.getBoundingClientRect().left;
     const dur = m.duration || 0;
-    let best = null, bestDist = EDGE_PX;
+    let best = null, bestDist = SECTION_EDGE_PX;
     for (const bt of m.boundaries) {
         // Normally only INTERIOR boundaries move (the track start/end aren't draggable). But when there's
         // a single section (m.splittable), its OUTER edges ARE grabbable so the user can drag one inward
@@ -559,7 +611,7 @@ function addPointerHandlers(inst) {
             c.style.cursor = 'ew-resize';
             return;
         }
-        const edge = hitLoopEdge(inst, e.clientX);
+        const edge = hitLoopEdge(inst, e.clientX, e.pointerType);
         // Pan (grab-and-slide the window) sits ABOVE loop-create/seek but BELOW boundary/loop-edge drags,
         // and only exists WHEN ZOOMED. Then a plain drag (mouse or touch) pans; a tap/click still seeks;
         // an existing loop's edges are still draggable (edge != null resizes it). At full-track view this
@@ -577,8 +629,13 @@ function addPointerHandlers(inst) {
         if (!pointerReady(inst)) return;
         if (!inst.drag) {
             // hover cursor feedback — a boundary under the pointer (edit mode) shows the resize cursor.
-            if (hitSectionBoundary(inst, e.clientX) != null) { c.style.cursor = 'ew-resize'; return; }
-            const edge = hitLoopEdge(inst, e.clientX);
+            if (hitSectionBoundary(inst, e.clientX) != null) {
+                inst.hoverLoopEdge = null;
+                c.style.cursor = 'ew-resize';
+                return;
+            }
+            const edge = hitLoopEdge(inst, e.clientX, e.pointerType);
+            inst.hoverLoopEdge = edge === 'start' || edge === 'end' ? edge : null;
             // Over an existing loop edge/interior, show its resize/move cursors. Otherwise, when zoomed the
             // wave background is grab-to-pan; unzoomed it's the seek/loop-create caret.
             if (edge === 'start' || edge === 'end') c.style.cursor = 'ew-resize';
@@ -669,5 +726,8 @@ function addPointerHandlers(inst) {
             commitLoop(inst, inst.model.loop.start, inst.model.loop.end);
         }
         inst.drag = null;
+    });
+    c.addEventListener('pointerleave', () => {
+        if (!inst.drag) inst.hoverLoopEdge = null;
     });
 }
