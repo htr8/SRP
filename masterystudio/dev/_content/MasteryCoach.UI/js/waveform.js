@@ -191,14 +191,14 @@ const OVERSCROLL_FRACTION = 0.4;
 // throttled cadence. `settle` forces an immediate notify (pan release / page land). `allowOverscroll`
 // (manual pan only) lets the window extend a margin beyond [0, duration]; the paint blanks the region
 // outside the track so it reads as empty gutter, not a smeared edge.
-function setLocalView(inst, start, end, settle, allowOverscroll) {
+function setLocalView(inst, start, end, settle, allowOverscroll, follow) {
     const dur = (inst.model && inst.model.duration) || 0;
     const span = Math.min(end - start, dur);
     // Only overscroll when actually zoomed (a whole-track view has nothing to pull away from) and asked.
     const margin = (allowOverscroll && span < dur - VIEW_EPS) ? span * OVERSCROLL_FRACTION : 0;
     start = Math.max(-margin, Math.min(start, dur - span + margin));
     inst.view = { start, end: start + span };
-    notifyView(inst, settle);
+    notifyView(inst, settle, follow);
 }
 
 function fixedHeadStart(inst, position, span) {
@@ -225,7 +225,7 @@ function setFixedHeadView(inst, position, span, settle, follow) {
 // Center-lock scrub: the playhead stays visually fixed at the centre while the waveform moves under it.
 // The view may extend half a window past the media edges so the fixed centre line can land exactly on
 // 0:00 or the track end.
-function setFixedHeadScrubView(inst, start, settle) {
+function setFixedHeadScrubView(inst, start, settle, follow) {
     const dur = (inst.model && inst.model.duration) || 0;
     const v = view(inst);
     const span = Math.min(v.end - v.start, dur);
@@ -233,7 +233,7 @@ function setFixedHeadScrubView(inst, start, settle) {
     start = fixedHeadStart(inst, start + span / 2, span);
     inst.view = { start, end: start + span };
     inst.localPos = Math.max(0, Math.min(dur, start + span / 2));
-    notifyView(inst, settle);
+    notifyView(inst, settle, follow);
 }
 
 function notifyScrubSeek(inst, settle) {
@@ -404,23 +404,31 @@ function paint(inst) {
         const b0 = Math.min(n - 1, Math.max(0, Math.floor(((v.start - pv.start) / pSpan) * n)));
         const b1 = Math.min(n, Math.max(b0 + 1, Math.ceil(((v.end - pv.start) / pSpan) * n)));
         const cols = Math.max(1, b1 - b0);
+        const drawCols = Math.min(cols, Math.max(1, Math.ceil(w * 1.5)));
         // Position each bucket by its actual TIME (via timeToX), not an even column across the whole
         // canvas. When the view is within [0, duration] this is identical to the old even spacing, but
         // when a manual pan OVERSCROLLS past an edge it keeps the audio at its true x and simply leaves
         // the off-track region blank — instead of stretching the track columns across the full width.
         const bucketTime = b => pv.start + ((b + 0.5) / n) * pSpan; // centre time of bucket b
-        const colW = w / cols;
+        const colW = w / drawCols;
         for (let pass = 0; pass < 2; pass++) {
-            for (let i = 0; i < cols; i++) {
-                const b = Math.min(n - 1, b0 + i);
-                const cx = timeToX(bucketTime(b)), x = cx - colW / 2, played = cx <= playedX;
+            for (let i = 0; i < drawCols; i++) {
+                const gb0 = Math.min(n - 1, b0 + Math.floor((i / drawCols) * cols));
+                const gb1 = Math.min(n, Math.max(gb0 + 1, b0 + Math.ceil(((i + 1) / drawCols) * cols)));
+                let minV = 1, maxV = -1, rmsV = 0;
+                for (let b = gb0; b < gb1; b++) {
+                    if (min[b] < minV) minV = min[b];
+                    if (max[b] > maxV) maxV = max[b];
+                    if (rms[b] > rmsV) rmsV = rms[b];
+                }
+                const cx = timeToX(bucketTime((gb0 + gb1 - 1) / 2)), x = cx - colW / 2, played = cx <= playedX;
                 if (pass === 0) {
-                    const top = mid - max[b] * (mid - 1), bot = mid - min[b] * (mid - 1);
+                    const top = mid - maxV * (mid - 1), bot = mid - minV * (mid - 1);
                     ctx.fillStyle = played ? cPlayed : cOutline;
                     ctx.globalAlpha = played ? 0.9 : 0.7;
                     ctx.fillRect(x, top, Math.max(1, colW * 0.9), Math.max(1, bot - top));
                 } else {
-                    const r = rms[b] * (mid - 1);
+                    const r = rmsV * (mid - 1);
                     ctx.fillStyle = played ? cPlayed : cBody;
                     ctx.globalAlpha = played ? 1 : 0.9;
                     ctx.fillRect(x, mid - r, Math.max(1, colW * 0.9), Math.max(1, r * 2));
@@ -694,7 +702,7 @@ function addPointerHandlers(inst) {
             const span = d.view0.end - d.view0.start;
             const dtSec = ((e.clientX - d.panStartX) / width) * span;
             if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
-            setLocalView(inst, d.view0.start - dtSec, d.view0.end - dtSec, false, true); // manual pan → overscroll allowed
+            setLocalView(inst, d.view0.start - dtSec, d.view0.end - dtSec, false, true, inst.model && inst.model.playing); // manual pan → overscroll allowed
             return;
         }
 
@@ -705,7 +713,7 @@ function addPointerHandlers(inst) {
             const span = d.view0.end - d.view0.start;
             const dtSec = ((e.clientX - d.panStartX) / width) * span;
             if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
-            setFixedHeadScrubView(inst, d.view0.start - dtSec, false);
+            setFixedHeadScrubView(inst, d.view0.start - dtSec, false, inst.model && inst.model.playing);
             if (d.moved) notifyScrubSeek(inst, false);
             return;
         }
@@ -748,9 +756,9 @@ function addPointerHandlers(inst) {
             c.classList && c.classList.remove('panning');
             c.style.cursor = isZoomed(inst) ? 'grab' : 'text';
             if (d.moved) {
-                // Settle: a final notify (bypasses the throttle) so the host re-pulls detail for the
-                // landed window.
-                if (inst.view) notifyView(inst, true);
+                // Settle: a final notify (bypasses the throttle). While playing, the host keeps
+                // whole-track peaks so the waveform does not re-bucket under a mark target.
+                if (inst.view) notifyView(inst, true, inst.model && inst.model.playing);
             } else if (inst.dotnet) {
                 // Didn't move → a tap/click on the zoomed wave still seeks (pan never steals the seek).
                 inst.localPos = d.t0;
@@ -764,7 +772,7 @@ function addPointerHandlers(inst) {
             c.classList && c.classList.remove('panning');
             c.style.cursor = isZoomed(inst) ? 'grab' : 'text';
             if (d.moved) {
-                if (inst.view) notifyView(inst, true);
+                if (inst.view) notifyView(inst, true, inst.model && inst.model.playing);
                 notifyScrubSeek(inst, true);
             } else if (inst.dotnet) {
                 inst.localPos = d.t0;
