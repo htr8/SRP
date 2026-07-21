@@ -25,6 +25,7 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 			this.wasmReady = false;
 			this.wasmModule = null;
 			this.channels = 0;
+			this.channelGains = [];
 			this.buffersIn = [];
 			this.buffersOut = [];
 			
@@ -178,6 +179,16 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 						segment[startChannel + i] = sampleBuffers[i];
 					}
 					return true;
+				},
+				// MasteryCoach patch (not upstream): per-channel stored-playback gates. Stem mute/solo is
+				// also enforced before the shared stretch DSP reads the interleaved stem channels, so a
+				// non-soloed stem cannot leak through any phase-vocoder channel coupling.
+				setChannelGains: gains => {
+					this.channelGains = [].concat(gains).map(g => {
+						g = Number(g);
+						return Number.isFinite(g) ? Math.max(0, g) : 1;
+					});
+					return true;
 				}
 			};
 
@@ -247,6 +258,23 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 				this.buffersIn.push(bufferPointer + lengthBytes*c);
 				this.buffersOut.push(bufferPointer + lengthBytes*(c + this.channels));
 			}
+			while (this.channelGains.length < this.channels) this.channelGains.push(1);
+			if (this.channelGains.length > this.channels) this.channelGains.length = this.channels;
+		}
+
+		channelGain(c) {
+			let gain = this.channelGains[c];
+			return Number.isFinite(gain) ? gain : 1;
+		}
+
+		applyChannelGain(channel, c, start = 0, end = channel.length) {
+			let gain = this.channelGain(c);
+			if (gain === 1) return;
+			if (gain === 0) {
+				channel.fill(0, start, end);
+				return;
+			}
+			for (let i = start; i < end; i++) channel[i] *= gain;
 		}
 
 		// MasteryCoach patch (not upstream): NEUTRAL pass-through (StemNeutralBypassPlan.md).
@@ -283,6 +311,7 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 					for (let c = 0; c < outChannels.length; c++) {
 						let srcChannel = segment[c % segment.length];
 						outChannels[c].set(srcChannel.subarray(inOffset, inOffset + count), outOffset);
+						this.applyChannelGain(outChannels[c], c, outOffset, outOffset + count);
 					}
 				}
 				segStart = segEnd;
@@ -340,6 +369,7 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 					} else {
 						buffer.fill(0);
 					}
+					this.applyChannelGain(buffer, c);
 				})
 				wasmModule._process(outputBlockSize, outputBlockSize);
 			} else {
@@ -392,6 +422,7 @@ function registerWorkletProcessor(Module, audioNodeKey) {
 						buffers.forEach((buffer, c) => {
 							let channelBuffer = audioBuffer[c%audioBuffer.length];
 							buffer.subarray(blockSamples).set(channelBuffer.subarray(startIndex, startIndex + count));
+							this.applyChannelGain(buffer, c, blockSamples, blockSamples + count);
 						});
 						audioSamples += count;
 						blockSamples += count;
