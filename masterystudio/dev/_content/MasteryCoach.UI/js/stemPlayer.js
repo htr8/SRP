@@ -348,6 +348,22 @@ function cancelPendingCountIn() {
     state.stretch.holdEndCheckUntil = 0; // re-arm the watchdog: the deferred start no longer exists
 }
 
+// Phone-class devices can underrun the full default Signalsmith preset when stretching 4+ stereo
+// stems at deep slowdowns (e.g. 60%). Use the lower-CPU preset there; keep desktop and small stem
+// sets on the default preset for best quality.
+export function stretchPresetForStemPlayback(stemCount, nav = globalThis.navigator) {
+    const channels = Math.max(0, stemCount || 0) * 2;
+    if (channels >= 12) return 'cheaper';
+    const ua = nav?.userAgent || '';
+    const platform = nav?.platform || '';
+    const touchPoints = nav?.maxTouchPoints || 0;
+    const iosClass = /\b(iPhone|iPad|iPod)\b/.test(ua) || /^(iPhone|iPad|iPod)/.test(platform)
+        || (platform === 'MacIntel' && touchPoints > 1);
+    const mobileClass = iosClass || /\bAndroid\b|\bMobile\b/i.test(ua) || touchPoints > 1;
+    const lowCore = typeof nav?.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4;
+    return channels >= 8 && (mobileClass || lowCore) ? 'cheaper' : 'default';
+}
+
 // ---------------------------------------------------------------------------------------------
 // Stretch engine
 // ---------------------------------------------------------------------------------------------
@@ -380,6 +396,11 @@ async function buildStretchGraph(stemCount) {
         numberOfOutputs: 1,
         outputChannelCount: [channels],
     });
+    const preset = stretchPresetForStemPlayback(stemCount);
+    if (preset !== 'default' && typeof node.configure === 'function') {
+        await node.configure({ preset });
+    }
+    state.stretch.preset = preset;
 
     const splitter = ctx.createChannelSplitter(channels);
     node.connect(splitter);
@@ -717,7 +738,7 @@ export async function loadFromStreams(descriptors) {
         applyGains();
         doneUnits = totalUnits;
         reportProgress(); // graph built — 100%
-        console.warn(`[stems-engine] stretch OK (${state.stems.length} stems, ${maxDuration.toFixed(1)}s)`);
+        console.warn(`[stems-engine] stretch OK (${state.stems.length} stems, ${maxDuration.toFixed(1)}s, preset=${state.stretch.preset || 'default'})`);
         return loaded;
     } catch (err) {
         // #62: a stretch-graph build failure drops stems to the CLASSIC engine, whose per-source
