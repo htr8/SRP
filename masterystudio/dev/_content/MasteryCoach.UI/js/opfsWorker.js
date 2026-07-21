@@ -42,6 +42,23 @@ async function writeFile(path, buffer) {
     }
 }
 
+async function writeChunk(path, buffer, offset, truncate) {
+    const { dir, name } = await parentDir(path, true);
+    const file = await dir.getFileHandle(name, { create: true });
+    const handle = await file.createSyncAccessHandle();
+    try {
+        if (truncate) {
+            await handle.truncate(0);
+        }
+        if (buffer && buffer.byteLength > 0) {
+            await handle.write(new Uint8Array(buffer), { at: offset || 0 });
+        }
+        await handle.flush();
+    } finally {
+        await handle.close();
+    }
+}
+
 async function deleteEntry(path, recursive) {
     try {
         const { dir, name } = await parentDir(path, false);
@@ -53,9 +70,10 @@ async function deleteEntry(path, recursive) {
 }
 
 async function handle(data) {
-    const { id, op, path, buffer, recursive } = data;
+    const { id, op, path, buffer, offset, truncate, recursive } = data;
     try {
         if (op === 'write') await writeFile(path, buffer);
+        else if (op === 'writeChunk') await writeChunk(path, buffer, offset, truncate);
         else if (op === 'delete') await deleteEntry(path, recursive);
         else throw new Error(`unknown op: ${op}`);
         self.postMessage({ id, ok: true });
