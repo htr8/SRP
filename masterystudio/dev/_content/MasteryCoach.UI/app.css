@@ -2892,6 +2892,29 @@ button.primary {
    toolbar reflowing as it would if the button were hidden (user request 2026-07-12). */
 .toolbar-toggle:disabled { opacity: 0.45; cursor: default; }
 .toolbar-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.toolbar-toggle.toolbar-icon-only {
+    justify-content: center;
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    gap: 0;
+}
+.eq-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 16px;
+    height: 16px;
+}
+.eq-icon span {
+    width: 3px;
+    border-radius: 999px;
+    background: currentColor;
+}
+.eq-icon span:nth-child(1) { height: 8px; }
+.eq-icon span:nth-child(2) { height: 14px; }
+.eq-icon span:nth-child(3) { height: 10px; }
 
 /* The web add-song control is a <label> wrapping a hidden <input type=file> so the tap on the label
    natively opens the file dialog (iOS Safari authorizes it; a programmatic input.click() after awaits
@@ -5068,7 +5091,7 @@ button.metronome-step-label {
 .playback-rows {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 0;
 }
 
 /* A row of inline controls that SCROLLS sideways rather than wrapping (user request 2026-07-13 — the
@@ -5095,14 +5118,18 @@ button.metronome-step-label {
 .loop-controls-stack {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
     min-width: 0;
 }
 .loop-controls-stack .control-toolbar-wrap {
     margin-top: 0;
 }
+.loop-controls-stack .control-toolbar,
+.loop-controls-stack .toolbar-scrollrow-inline {
+    padding-bottom: 0;
+}
 .loop-drawer-row {
-    padding: 2px 0 4px;
+    padding: 0;
 }
 .toolbar-inline-note {
     display: inline-flex;
