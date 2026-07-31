@@ -16,7 +16,6 @@ export const SEGMENT_SAMPLES = 343980;
 export const STEP_SAMPLES = SEGMENT_SAMPLES / 2; // 171990
 export const STEM_COUNT = 6;
 export const CHANNEL_COUNT = 2;
-export const PCM16_BYTES_PER_SAMPLE = 2;
 export const STEM_LABELS = ['drums', 'bass', 'other', 'vocals', 'guitar', 'piano'];
 
 /// Chunk start offsets for a song of `totalFrames` frames — one model run per entry.
@@ -67,18 +66,12 @@ export function formatDuration(seconds) {
     return h > 0 ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`;
 }
 
-/// Clamp a normalized float sample into 16-bit PCM. Web splits are saved for playback/practice, not
-/// further model input; 16-bit halves the end-of-job memory peak on phones versus float32 WAV.
-export function floatToPcm16(sample) {
-    const s = Math.max(-1, Math.min(1, sample || 0));
-    return s < 0 ? Math.round(s * 32768) : Math.round(s * 32767);
-}
-
-/// Allocate a complete 16-bit PCM stereo WAV: 44-byte header + interleaved int16 LE data. Returns
-/// the buffer plus an Int16Array view over the data region so callers write samples with no final
-/// copy; the header offset (44) is 2-byte aligned by construction.
-export function allocPcm16StereoWav(frames, sampleRate) {
-    const dataBytes = frames * CHANNEL_COUNT * PCM16_BYTES_PER_SAMPLE;
+/// Allocate a complete 32-bit-float stereo WAV (the same encoding the native separator writes via
+/// NAudio's IeeeFloat writer): 44-byte header + interleaved float32 LE data. Returns the buffer
+/// plus a Float32Array view over the data region so callers write samples with no final copy —
+/// the header offset (44) is 4-byte aligned by construction.
+export function allocFloat32StereoWav(frames, sampleRate) {
+    const dataBytes = frames * CHANNEL_COUNT * 4;
     const buffer = new ArrayBuffer(44 + dataBytes);
     const view = new DataView(buffer);
     const ascii = (pos, text) => {
@@ -89,15 +82,15 @@ export function allocPcm16StereoWav(frames, sampleRate) {
     ascii(8, 'WAVE');
     ascii(12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);                                // PCM
+    view.setUint16(20, 3, true);                                // IEEE float
     view.setUint16(22, CHANNEL_COUNT, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * CHANNEL_COUNT * PCM16_BYTES_PER_SAMPLE, true);
-    view.setUint16(32, CHANNEL_COUNT * PCM16_BYTES_PER_SAMPLE, true);
-    view.setUint16(34, 16, true);
+    view.setUint32(28, sampleRate * CHANNEL_COUNT * 4, true);   // byte rate
+    view.setUint16(32, CHANNEL_COUNT * 4, true);                // block align
+    view.setUint16(34, 32, true);                               // bits per sample
     ascii(36, 'data');
     view.setUint32(40, dataBytes, true);
-    return { buffer, samples: new Int16Array(buffer, 44, frames * CHANNEL_COUNT) };
+    return { buffer, samples: new Float32Array(buffer, 44, frames * CHANNEL_COUNT) };
 }
 
 /// Streaming overlap-add straight into the stem WAVs (stemCount of them — 6 for htdemucs_6s,
@@ -112,7 +105,7 @@ export class OverlapAddWriter {
         this.totalFrames = totalFrames;
         this.stemCount = stemCount;
         this.flushedFrames = 0;
-        this.wavs = Array.from({ length: stemCount }, () => allocPcm16StereoWav(totalFrames, sampleRate));
+        this.wavs = Array.from({ length: stemCount }, () => allocFloat32StereoWav(totalFrames, sampleRate));
         // acc[stem][channel] — a rolling SEGMENT window, like the native accumulation buffers.
         this.acc = Array.from({ length: stemCount },
             () => [new Float32Array(SEGMENT_SAMPLES), new Float32Array(SEGMENT_SAMPLES)]);
@@ -146,8 +139,8 @@ export class OverlapAddWriter {
             let pos = this.flushedFrames * 2;
             for (let i = 0; i < framesToFlush; i++, pos += 2) {
                 const w = this.weights[i] <= 0 ? 1 : this.weights[i];
-                out[pos] = floatToPcm16(accL[i] / w);
-                out[pos + 1] = floatToPcm16(accR[i] / w);
+                out[pos] = accL[i] / w;
+                out[pos + 1] = accR[i] / w;
             }
         }
         this.flushedFrames += framesToFlush;
@@ -214,12 +207,12 @@ function modelSpec(spec) {
 
 /// Projected peak bytes for a song of `totalFrames` frames — the WORKER's peak near the end of the
 /// run, which is the high-water mark of the whole pipeline: ort heap + model buffer + transferred
-/// input (L+R float32) + all finished 16-bit stereo stem WAVs (~53 MB/stem for a 5-min song)
+/// input (L+R float32) + all finished float32 stereo stem WAVs (~106 MB/stem for a 5-min song)
 /// + the rolling overlap-add accumulators.
 export function projectedPeakBytes(totalFrames, spec) {
     const { stemCount, ortHeapBytes, modelBufferBytes } = modelSpec(spec);
     const inputBytes = totalFrames * CHANNEL_COUNT * 4;
-    const stemWavBytes = stemCount * (44 + totalFrames * CHANNEL_COUNT * PCM16_BYTES_PER_SAMPLE);
+    const stemWavBytes = stemCount * (44 + totalFrames * CHANNEL_COUNT * 4);
     const accumulatorBytes = (stemCount * CHANNEL_COUNT + 1) * SEGMENT_SAMPLES * 4;
     return ortHeapBytes + modelBufferBytes + inputBytes + stemWavBytes + accumulatorBytes;
 }
@@ -258,7 +251,7 @@ export function maxFeasibleFrames(budgetBytes, spec) {
     const fixedBytes = ortHeapBytes + modelBufferBytes
         + stemCount * 44
         + (stemCount * CHANNEL_COUNT + 1) * SEGMENT_SAMPLES * 4;
-    const perFrameBytes = CHANNEL_COUNT * 4 + stemCount * CHANNEL_COUNT * PCM16_BYTES_PER_SAMPLE;
+    const perFrameBytes = CHANNEL_COUNT * 4 * (1 + stemCount); // input frame + one frame per stem WAV
     return Math.max(0, Math.floor((budgetBytes - fixedBytes) / perFrameBytes));
 }
 

@@ -2892,29 +2892,6 @@ button.primary {
    toolbar reflowing as it would if the button were hidden (user request 2026-07-12). */
 .toolbar-toggle:disabled { opacity: 0.45; cursor: default; }
 .toolbar-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.toolbar-toggle.toolbar-icon-only {
-    justify-content: center;
-    width: 34px;
-    min-width: 34px;
-    padding: 0;
-    gap: 0;
-}
-.eq-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 16px;
-    height: 16px;
-}
-.eq-icon span {
-    width: 3px;
-    border-radius: 999px;
-    background: currentColor;
-}
-.eq-icon span:nth-child(1) { height: 8px; }
-.eq-icon span:nth-child(2) { height: 14px; }
-.eq-icon span:nth-child(3) { height: 10px; }
 
 /* The web add-song control is a <label> wrapping a hidden <input type=file> so the tap on the label
    natively opens the file dialog (iOS Safari authorizes it; a programmatic input.click() after awaits
@@ -5091,7 +5068,7 @@ button.metronome-step-label {
 .playback-rows {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 6px;
 }
 
 /* A row of inline controls that SCROLLS sideways rather than wrapping (user request 2026-07-13 — the
@@ -5114,32 +5091,6 @@ button.metronome-step-label {
 /* Children must not shrink or the steppers collapse when the row overflows. */
 .sound-row > *,
 .toolbar-scrollrow-inline > * { flex: 0 0 auto; }
-
-.loop-controls-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    min-width: 0;
-}
-.loop-controls-stack .control-toolbar-wrap {
-    margin-top: 0;
-}
-.loop-controls-stack .control-toolbar,
-.loop-controls-stack .toolbar-scrollrow-inline {
-    padding-bottom: 0;
-}
-.loop-drawer-row {
-    padding: 0;
-}
-.toolbar-inline-note {
-    display: inline-flex;
-    align-items: center;
-    height: 30px;
-    padding: 0 10px;
-    color: var(--muted);
-    font-size: 12px;
-    white-space: nowrap;
-}
 
 /* A [−] value [+] stepper group, styled from the transport-button family (--panel-2 / --line). */
 .stepper {
@@ -5362,14 +5313,6 @@ button.metronome-step-label {
 .saved-loops-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .saved-loops-name { font-weight: 600; }
 .saved-loops-time { font-size: 11px; color: var(--muted); }
-.loop-drawer-item.saved-loops-item {
-    height: 30px;
-    padding: 0 10px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 15px;
-}
-.loop-drawer-item.saved-loops-item:hover:not(:disabled) { border-color: var(--accent); }
 
 .marks-menu {
     position: relative;
@@ -5437,16 +5380,6 @@ button.metronome-step-label {
 }
 .marks-chip.on { color: var(--text); border-color: var(--skip-mark-edge); background: rgba(255, 138, 91, 0.18); }
 .marks-delete:hover:not(:disabled) { color: #fff; border-color: var(--danger, #c0524a); background: var(--danger, #c0524a); }
-.marks-drawer-item {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: minmax(110px, 1fr) auto auto;
-    min-width: 230px;
-    max-width: 320px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-}
-.marks-drawer-item:hover { border-color: var(--accent); }
 .mark-name-input {
     flex: 0 0 auto;
     width: 132px;

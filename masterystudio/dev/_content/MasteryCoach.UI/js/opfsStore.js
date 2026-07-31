@@ -138,46 +138,6 @@ export async function writeFile(path, streamRef) {
     return true;
 }
 
-// Stream a DotNetStreamReference into OPFS in chunks. This avoids the export/download path's old
-// whole-zip ArrayBuffer copy, which can get iOS to terminate the page before .NET can log anything.
-export async function writeFileStream(path, streamRef) {
-    if (typeof streamRef.stream !== 'function') {
-        return await writeFile(path, streamRef);
-    }
-
-    let stream;
-    try {
-        stream = await streamRef.stream(); // Promise on native, plain stream on WASM.
-    } catch {
-        return await writeFile(path, streamRef);
-    }
-
-    const reader = stream.getReader();
-    let offset = 0;
-    let wroteAny = false;
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
-        const chunkLength = bytes.byteLength;
-        const buffer = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
-            ? bytes.buffer
-            : bytes.slice().buffer;
-        await workerOp({ op: 'writeChunk', path, offset, truncate: !wroteAny, buffer }, [buffer]);
-        // Transferring buffer detaches it, which can make bytes.byteLength read back as 0.
-        // Capture the length first so later chunks append instead of overwriting byte 0.
-        offset += chunkLength;
-        wroteAny = true;
-    }
-
-    if (!wroteAny) {
-        const empty = new ArrayBuffer(0);
-        await workerOp({ op: 'writeChunk', path, offset: 0, truncate: true, buffer: empty }, [empty]);
-    }
-
-    return true;
-}
-
 export async function deleteEntry(path, recursive) {
     await workerOp({ op: 'delete', path, recursive: !!recursive });
     return true;
@@ -376,37 +336,5 @@ export async function downloadFile(fileName, streamRef) {
         // can abort it in some browsers.
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
     }
-    return true;
-}
-
-// Save an OPFS-backed file without first copying the entire file into JS memory.
-export async function downloadStoredFile(path, fileName) {
-    const handle = await getHandle(path, 'file', false);
-    if (!handle) throw new Error(`Export file not found: ${path}`);
-    const file = await handle.getFile();
-    const url = URL.createObjectURL(file);
-    try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName || file.name || 'download.zip';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    } finally {
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    }
-    return true;
-}
-
-export function persistRecoveryLog(level, source, message) {
-    try {
-        const key = 'mc-crash-log';
-        const line = `[${new Date().toISOString()}] [${level || 'info'}] [${source || 'web'}] ${String(message || '')}`;
-        const raw = window.localStorage.getItem(key);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.push(line.slice(0, 8000));
-        while (arr.length > 50) arr.shift();
-        window.localStorage.setItem(key, JSON.stringify(arr));
-    } catch { }
     return true;
 }

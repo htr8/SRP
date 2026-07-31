@@ -4,8 +4,7 @@
 // TWO engines (see docs/08_Audio_Engine/AudioStretchQuality.md):
 //
 //  1. PRIMARY — one multichannel Signalsmith Stretch node carrying ALL stems as channel pairs,
-//     gated before shared DSP for mute/solo, then split after the node into per-stem gains for volume.
-//     One engine instance means tempo,
+//     split after the node into per-stem gains for mute/solo. One engine instance means tempo,
 //     pitch, seeking and gapless looping apply to every stem in the same DSP block — sync is
 //     guaranteed by construction, and slowing down no longer detunes the music (the old
 //     playbackRate mechanism resampled, so 70% tempo played ~a third flat).
@@ -183,8 +182,8 @@ function ensurePanner() {
 
 // The dual-mix send matrix, pure for tests (effectiveGain's pattern): what fraction of one stem
 // reaches each bus. Tier 1 is 0/1 sends — the monitor always hears the stem, the room hears it
-// unless it's monitor-only. Volume/mute/solo are handled by the stem gates/gain nodes and are
-// deliberately not part of this routing decision. Exported for tests.
+// unless it's monitor-only. Volume/mute/solo sit UPSTREAM on the gain node and are deliberately
+// not part of this decision. Exported for tests.
 export function sendGains(monitorOnly) {
     return { monitor: 1, room: monitorOnly ? 0 : 1 };
 }
@@ -349,22 +348,6 @@ function cancelPendingCountIn() {
     state.stretch.holdEndCheckUntil = 0; // re-arm the watchdog: the deferred start no longer exists
 }
 
-// Phone-class devices can underrun the full default Signalsmith preset when stretching 4+ stereo
-// stems at deep slowdowns (e.g. 60%). Use the lower-CPU preset there; keep desktop and small stem
-// sets on the default preset for best quality.
-export function stretchPresetForStemPlayback(stemCount, nav = globalThis.navigator) {
-    const channels = Math.max(0, stemCount || 0) * 2;
-    if (channels >= 12) return 'cheaper';
-    const ua = nav?.userAgent || '';
-    const platform = nav?.platform || '';
-    const touchPoints = nav?.maxTouchPoints || 0;
-    const iosClass = /\b(iPhone|iPad|iPod)\b/.test(ua) || /^(iPhone|iPad|iPod)/.test(platform)
-        || (platform === 'MacIntel' && touchPoints > 1);
-    const mobileClass = iosClass || /\bAndroid\b|\bMobile\b/i.test(ua) || touchPoints > 1;
-    const lowCore = typeof nav?.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4;
-    return channels >= 8 && (mobileClass || lowCore) ? 'cheaper' : 'default';
-}
-
 // ---------------------------------------------------------------------------------------------
 // Stretch engine
 // ---------------------------------------------------------------------------------------------
@@ -387,9 +370,8 @@ function teardownStretchGraph() {
     s.position = 0;
 }
 
-// One stretch node with 2 channels per stem. Mute/solo gates are pushed into the worklet before the
-// shared DSP reads those channels, then a splitter feeds per-stem stereo mergers and gain nodes for
-// post-stretch volume/pan.
+// One stretch node with 2 channels per stem; after the node a splitter feeds per-stem
+// stereo mergers and gain nodes, so mute/solo stay per-stem while DSP is shared.
 async function buildStretchGraph(stemCount) {
     const ctx = ensureCtx();
     const channels = stemCount * 2;
@@ -398,11 +380,6 @@ async function buildStretchGraph(stemCount) {
         numberOfOutputs: 1,
         outputChannelCount: [channels],
     });
-    const preset = stretchPresetForStemPlayback(stemCount);
-    if (preset !== 'default' && typeof node.configure === 'function') {
-        await node.configure({ preset });
-    }
-    state.stretch.preset = preset;
 
     const splitter = ctx.createChannelSplitter(channels);
     node.connect(splitter);
@@ -740,7 +717,7 @@ export async function loadFromStreams(descriptors) {
         applyGains();
         doneUnits = totalUnits;
         reportProgress(); // graph built — 100%
-        console.warn(`[stems-engine] stretch OK (${state.stems.length} stems, ${maxDuration.toFixed(1)}s, preset=${state.stretch.preset || 'default'})`);
+        console.warn(`[stems-engine] stretch OK (${state.stems.length} stems, ${maxDuration.toFixed(1)}s)`);
         return loaded;
     } catch (err) {
         // #62: a stretch-graph build failure drops stems to the CLASSIC engine, whose per-source
@@ -852,20 +829,6 @@ export function effectiveGain(stem, solo) {
     return stem.volume ?? 1; // per-stem volume (1 = unity); mute/solo still hard-gate to 0
 }
 
-export function effectiveChannelGate(stem, solo) {
-    if (stem.muted) return 0;
-    return solo.length > 0 && !solo.includes(stem.id) ? 0 : 1;
-}
-
-export function stemChannelGates(stems, solo) {
-    const gates = [];
-    for (const stem of stems || []) {
-        const gate = effectiveChannelGate(stem, solo || []);
-        gates.push(gate, gate);
-    }
-    return gates;
-}
-
 // Per-stem volume, 0..N (1 = unity/original level). Applied live through the stem's gain node.
 export function setStemVolume(id, volume) {
     const stem = state.stems.find(s => s.id === id);
@@ -886,15 +849,9 @@ export function setStemPan(id, pan) {
     if (stem.panNode) stem.panNode.pan.value = stem.pan;
 }
 
-function applyGains(options = {}) {
+function applyGains() {
     for (const stem of state.stems) {
         if (stem.gainNode) stem.gainNode.gain.value = effectiveGain(stem, state.solo);
-    }
-    if (state.engine === 'stretch' && state.stretch.node && typeof state.stretch.node.setChannelGains === 'function') {
-        state.stretch.node.setChannelGains(stemChannelGates(state.stems, state.solo)).catch(() => {});
-        if (options.reprimeStretch && state.stretch.playing && !countInPending()) {
-            applyStretchSchedule({ input: state.stretch.position || 0 });
-        }
     }
 }
 
@@ -1175,7 +1132,7 @@ export function setMuted(id, muted) {
     const stem = state.stems.find(s => s.id === id);
     if (stem) {
         stem.muted = muted;
-        applyGains({ reprimeStretch: true });
+        applyGains();
     }
 }
 
@@ -1184,7 +1141,7 @@ export function setMuted(id, muted) {
 export function setSolo(ids) {
     const loaded = new Set(state.stems.map(s => s.id));
     state.solo = Array.isArray(ids) ? ids.filter(id => loaded.has(id)) : [];
-    applyGains({ reprimeStretch: true });
+    applyGains();
 }
 
 export function setLoop(start, end, loop) {

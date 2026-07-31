@@ -107,7 +107,7 @@ export function getStemWav(jobId, index) {
     if (!job || !job.wavs || !job.wavs[index]) throw new Error(`no stem ${index} for job ${jobId}`);
     // The Blob snapshots the bytes (File API semantics), so drop our reference immediately: the
     // save loop reads each stem exactly once, and releasing as we go keeps the sustained JS heap
-    // at ONE stem's WAV (~53 MB for a 5-minute song) instead of all six (~320 MB) while .NET
+    // at ONE stem's WAV (~106 MB for a 5-minute song) instead of all six (~640 MB) while .NET
     // streams them out (review finding).
     const blob = new Blob([job.wavs[index]], { type: 'audio/wav' });
     job.wavs[index] = null;

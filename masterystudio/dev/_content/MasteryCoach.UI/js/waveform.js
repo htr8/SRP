@@ -58,7 +58,6 @@ export function attach(canvas, dotnet) {
         view: null,
         lastViewNotify: 0,      // throttle clock for notifyView
         trailingNotify: 0,      // pending trailing-edge notify timer id
-        hoverLoopEdge: null,     // visual affordance for the nearest active-loop grab handle
     };
     instances.set(id, inst);
     addPointerHandlers(inst);
@@ -158,10 +157,6 @@ export function update(id, model) {
         }
         inst.view = { start: incoming.start, end: incoming.end };
     }
-    if (inst.model && inst.model.centerLock && inst.view && isZoomed(inst) && !inst.drag) {
-        const span = inst.view.end - inst.view.start;
-        setFixedHeadView(inst, inst.localPos, span, true, true);
-    }
 }
 
 const VIEW_EPS = 0.002; // seconds; below this two windows are "the same" (ignore the pan/follow echo)
@@ -191,57 +186,14 @@ const OVERSCROLL_FRACTION = 0.4;
 // throttled cadence. `settle` forces an immediate notify (pan release / page land). `allowOverscroll`
 // (manual pan only) lets the window extend a margin beyond [0, duration]; the paint blanks the region
 // outside the track so it reads as empty gutter, not a smeared edge.
-function setLocalView(inst, start, end, settle, allowOverscroll, follow) {
+function setLocalView(inst, start, end, settle, allowOverscroll) {
     const dur = (inst.model && inst.model.duration) || 0;
     const span = Math.min(end - start, dur);
     // Only overscroll when actually zoomed (a whole-track view has nothing to pull away from) and asked.
     const margin = (allowOverscroll && span < dur - VIEW_EPS) ? span * OVERSCROLL_FRACTION : 0;
     start = Math.max(-margin, Math.min(start, dur - span + margin));
     inst.view = { start, end: start + span };
-    notifyView(inst, settle, follow);
-}
-
-function fixedHeadStart(inst, position, span) {
-    const dur = (inst.model && inst.model.duration) || 0;
-    if (dur <= VIEW_EPS || span <= VIEW_EPS) return 0;
-    const halfSpan = span / 2;
-    const minStart = -halfSpan;
-    const maxStart = Math.max(minStart, dur - halfSpan);
-    return Math.max(minStart, Math.min(position - halfSpan, maxStart));
-}
-
-function setFixedHeadView(inst, position, span, settle, follow) {
-    const dur = (inst.model && inst.model.duration) || 0;
-    span = Math.min(span, dur);
-    if (span <= VIEW_EPS) return false;
-    const start = fixedHeadStart(inst, position, span);
-    const next = { start, end: start + span };
-    if (viewsEqual(next, inst.view)) return false;
-    inst.view = next;
-    notifyView(inst, settle, follow);
-    return true;
-}
-
-// Center-lock scrub: the playhead stays visually fixed at the centre while the waveform moves under it.
-// The view may extend half a window past the media edges so the fixed centre line can land exactly on
-// 0:00 or the track end.
-function setFixedHeadScrubView(inst, start, settle, follow) {
-    const dur = (inst.model && inst.model.duration) || 0;
-    const v = view(inst);
-    const span = Math.min(v.end - v.start, dur);
-    if (span <= VIEW_EPS) return;
-    start = fixedHeadStart(inst, start + span / 2, span);
-    inst.view = { start, end: start + span };
-    inst.localPos = Math.max(0, Math.min(dur, start + span / 2));
-    notifyView(inst, settle, follow);
-}
-
-function notifyScrubSeek(inst, settle) {
-    if (!inst.dotnet) return;
-    const now = performance.now();
-    if (!settle && now - (inst.lastScrubSeekNotify || 0) < 80) return;
-    inst.lastScrubSeekNotify = now;
-    safeInvoke(inst.dotnet, 'OnSeekJs', inst.localPos);
+    notifyView(inst, settle);
 }
 
 // Report the live window to Blazor. Throttled to ~10/sec during continuous motion (pan), with a
@@ -292,15 +244,20 @@ function frame(id, ts) {
 // peaks debounce (the host keeps whole-track peaks while following; see the `follow` flag on the notify).
 // Under reduced motion this still runs — just off the coarser position syncs, so it steps.
 function followPlayhead(inst) {
-    if (!isZoomed(inst) || (inst.drag && (inst.drag.kind === 'pan' || inst.drag.kind === 'scrub'))) return; // don't fight a live gesture
+    if (!isZoomed(inst) || (inst.drag && inst.drag.kind === 'pan')) return; // don't fight a live pan
     const m = inst.model, v = inst.view, span = v.end - v.start;
     const dur = (m && m.duration) || 0;
 
-    // Center-lock mode: keep the playhead pinned at the horizontal centre and scroll the window under it.
-    // The view may extend half a visible span before/after the track, so 0:00 and the track end still
-    // land on the fixed centre line instead of being pinned to the canvas edges.
+    // Center-lock mode: while PLAYING, keep the playhead pinned at the horizontal centre and scroll the
+    // window under it every frame — the classic DAW feel. Clamped to [0, duration], so near the very
+    // start/end the playhead drifts off-centre rather than showing empty space beyond the track. Paused,
+    // it falls through to the page-turn re-centre below (so an off-view seek still brings the view back).
     if (m.centerLock && m.playing) {
-        setFixedHeadView(inst, inst.localPos, span, false, true);
+        let ns = inst.localPos - span / 2;
+        ns = Math.max(0, Math.min(ns, dur - span));
+        if (Math.abs(ns - v.start) < VIEW_EPS) return; // sub-epsilon move (e.g. parked at an edge) — skip
+        inst.view = { start: ns, end: ns + span };
+        notifyView(inst, false, true);                 // follow=true → host keeps whole-track peaks (no re-pull)
         return;
     }
 
@@ -404,31 +361,23 @@ function paint(inst) {
         const b0 = Math.min(n - 1, Math.max(0, Math.floor(((v.start - pv.start) / pSpan) * n)));
         const b1 = Math.min(n, Math.max(b0 + 1, Math.ceil(((v.end - pv.start) / pSpan) * n)));
         const cols = Math.max(1, b1 - b0);
-        const drawCols = Math.min(cols, Math.max(1, Math.ceil(w * 1.5)));
         // Position each bucket by its actual TIME (via timeToX), not an even column across the whole
         // canvas. When the view is within [0, duration] this is identical to the old even spacing, but
         // when a manual pan OVERSCROLLS past an edge it keeps the audio at its true x and simply leaves
         // the off-track region blank — instead of stretching the track columns across the full width.
         const bucketTime = b => pv.start + ((b + 0.5) / n) * pSpan; // centre time of bucket b
-        const colW = w / drawCols;
+        const colW = w / cols;
         for (let pass = 0; pass < 2; pass++) {
-            for (let i = 0; i < drawCols; i++) {
-                const gb0 = Math.min(n - 1, b0 + Math.floor((i / drawCols) * cols));
-                const gb1 = Math.min(n, Math.max(gb0 + 1, b0 + Math.ceil(((i + 1) / drawCols) * cols)));
-                let minV = 1, maxV = -1, rmsV = 0;
-                for (let b = gb0; b < gb1; b++) {
-                    if (min[b] < minV) minV = min[b];
-                    if (max[b] > maxV) maxV = max[b];
-                    if (rms[b] > rmsV) rmsV = rms[b];
-                }
-                const cx = timeToX(bucketTime((gb0 + gb1 - 1) / 2)), x = cx - colW / 2, played = cx <= playedX;
+            for (let i = 0; i < cols; i++) {
+                const b = Math.min(n - 1, b0 + i);
+                const cx = timeToX(bucketTime(b)), x = cx - colW / 2, played = cx <= playedX;
                 if (pass === 0) {
-                    const top = mid - maxV * (mid - 1), bot = mid - minV * (mid - 1);
+                    const top = mid - max[b] * (mid - 1), bot = mid - min[b] * (mid - 1);
                     ctx.fillStyle = played ? cPlayed : cOutline;
                     ctx.globalAlpha = played ? 0.9 : 0.7;
                     ctx.fillRect(x, top, Math.max(1, colW * 0.9), Math.max(1, bot - top));
                 } else {
-                    const r = rmsV * (mid - 1);
+                    const r = rms[b] * (mid - 1);
                     ctx.fillStyle = played ? cPlayed : cBody;
                     ctx.globalAlpha = played ? 1 : 0.9;
                     ctx.fillRect(x, mid - r, Math.max(1, colW * 0.9), Math.max(1, r * 2));
@@ -475,18 +424,18 @@ function paint(inst) {
     }
 
     // Foreground loop handles: keep them visible across the full waveform height, even on loud/dense
-    // passages whose filled peaks would otherwise cover the underlay. The caps make the handles read as
-    // draggable targets instead of hairline markers, matching the larger touch hit target below.
+    // passages whose filled peaks would otherwise cover the underlay.
     if (m.loop && m.loop.end != null) {
         const x0 = Math.round(timeToX(m.loop.start));
         const x1 = Math.round(timeToX(m.loop.end));
-        const loopEdge = cssVar(canvas, '--loop-edge', '#f0c35a');
-        const activeEdge = inst.drag && (inst.drag.edge === 'start' || inst.drag.edge === 'end')
-            ? inst.drag.edge
-            : inst.hoverLoopEdge;
-        drawLoopHandle(ctx, x0, h, loopEdge, activeEdge === 'start');
-        drawLoopHandle(ctx, x1, h, loopEdge, activeEdge === 'end');
+        ctx.fillStyle = cssVar(canvas, '--loop-edge', '#f0c35a');
+        ctx.fillRect(x0 - 1, 0, 3, h);
+        ctx.fillRect(x1 - 1, 0, 3, h);
     }
+
+    // playhead
+    ctx.fillStyle = cPlayed;
+    ctx.fillRect(Math.round(playedX) - 1, 0, 2, h);
 
     // Edit mode: draw a draggable grab-line at each interior section boundary, plus a live preview
     // line while one is being dragged. The lane above shows section names/colours; this is the handle.
@@ -514,45 +463,6 @@ function paint(inst) {
             ctx.fillRect(px - 1, 0, 2, h);
         }
     }
-
-    // Playhead: draw last so the current audible position is never hidden by peaks, loop bands, saved
-    // markers, or section guides. The dark halo keeps it legible over bright played waveform columns.
-    drawPlayhead(ctx, Math.round(playedX), h, cssVar(canvas, '--wave-playhead', '#f8fafc'));
-}
-
-function drawLoopHandle(ctx, x, h, color, active) {
-    if (active) {
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.16;
-        ctx.fillRect(x - 14, 0, 28, h);
-        ctx.globalAlpha = 1;
-    }
-
-    ctx.fillStyle = color;
-    ctx.fillRect(x - 2, 0, 4, h);
-    ctx.fillRect(x - 9, 0, 18, 6);
-    ctx.fillRect(x - 9, h - 6, 18, 6);
-
-    if (active) {
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.85;
-        ctx.fillRect(x - 1, 6, 2, Math.max(1, h - 12));
-        ctx.globalAlpha = 1;
-    }
-}
-
-function drawPlayhead(ctx, x, h, color) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(x - 3, 0, 7, h);
-    ctx.fillStyle = color;
-    ctx.fillRect(x - 1, 0, 3, h);
-    ctx.fillStyle = '#f0c35a';
-    ctx.beginPath();
-    ctx.moveTo(x - 6, 0);
-    ctx.lineTo(x + 6, 0);
-    ctx.lineTo(x, 8);
-    ctx.closePath();
-    ctx.fill();
 }
 
 function xToTime(inst, clientX) {
@@ -582,27 +492,15 @@ function snapTime(inst, t) {
     return best;
 }
 
-const SECTION_EDGE_PX = 8;
-const LOOP_EDGE_MOUSE_PX = 12;
-const LOOP_EDGE_TOUCH_PX = 28;
+const EDGE_PX = 6;
 
-function loopEdgeHitPx(pointerType) {
-    return pointerType === 'touch' || pointerType === 'pen'
-        ? LOOP_EDGE_TOUCH_PX
-        : LOOP_EDGE_MOUSE_PX;
-}
-
-function hitLoopEdge(inst, clientX, pointerType) {
+function hitLoopEdge(inst, clientX) {
     const m = inst.model;
     if (!m || !m.loop || m.loop.end == null) return null;
     const x = clientX - inst.canvas.getBoundingClientRect().left;
-    const xStart = timeToXpx(inst, m.loop.start);
-    const xEnd = timeToXpx(inst, m.loop.end);
-    const dStart = Math.abs(x - xStart);
-    const dEnd = Math.abs(x - xEnd);
-    const edgePx = loopEdgeHitPx(pointerType);
-    if (Math.min(dStart, dEnd) <= edgePx) return dStart <= dEnd ? 'start' : 'end';
-    const inside = x > xStart && x < xEnd;
+    if (Math.abs(x - timeToXpx(inst, m.loop.start)) <= EDGE_PX) return 'start';
+    if (Math.abs(x - timeToXpx(inst, m.loop.end)) <= EDGE_PX) return 'end';
+    const inside = x > timeToXpx(inst, m.loop.start) && x < timeToXpx(inst, m.loop.end);
     return inside ? 'move' : null;
 }
 
@@ -612,7 +510,7 @@ function commitLoop(inst, start, end) {
 }
 
 // In edit mode, the nearest INTERIOR section boundary (a time shared by two adjacent sections) to the
-// pointer, if within SECTION_EDGE_PX. The track-start/end aren't draggable. Returns the boundary time or null.
+// pointer, if within EDGE_PX. The track-start/end aren't draggable. Returns the boundary time or null.
 function hitSectionBoundary(inst, clientX) {
     const m = inst.model;
     // The model can be null before the first update() (or momentarily during a resize/reflow, e.g. a
@@ -620,7 +518,7 @@ function hitSectionBoundary(inst, clientX) {
     if (!m || !m.editSections || !m.boundaries || m.boundaries.length === 0) return null;
     const x = clientX - inst.canvas.getBoundingClientRect().left;
     const dur = m.duration || 0;
-    let best = null, bestDist = SECTION_EDGE_PX;
+    let best = null, bestDist = EDGE_PX;
     for (const bt of m.boundaries) {
         // Normally only INTERIOR boundaries move (the track start/end aren't draggable). But when there's
         // a single section (m.splittable), its OUTER edges ARE grabbable so the user can drag one inward
@@ -661,14 +559,13 @@ function addPointerHandlers(inst) {
             c.style.cursor = 'ew-resize';
             return;
         }
-        const edge = hitLoopEdge(inst, e.clientX, e.pointerType);
-        // Pan/scrub sits ABOVE loop-create/seek but BELOW boundary/loop-edge drags, and only exists WHEN
-        // ZOOMED. With center-lock on, the playhead stays fixed and the wave drags underneath it,
-        // seeking to the time under the fixed head. Otherwise a plain drag pans the view. A tap/click
-        // still seeks; existing loop edges remain draggable.
+        const edge = hitLoopEdge(inst, e.clientX);
+        // Pan (grab-and-slide the window) sits ABOVE loop-create/seek but BELOW boundary/loop-edge drags,
+        // and only exists WHEN ZOOMED. Then a plain drag (mouse or touch) pans; a tap/click still seeks;
+        // an existing loop's edges are still draggable (edge != null resizes it). At full-track view this
+        // never triggers, so loop-create-by-drag and every other gesture are unchanged.
         if (edge == null && isZoomed(inst)) {
-            const kind = inst.model && inst.model.centerLock ? 'scrub' : 'pan';
-            inst.drag = { kind, panStartX: e.clientX, t0: t, view0: { ...inst.view }, moved: false };
+            inst.drag = { kind: 'pan', panStartX: e.clientX, t0: t, view0: { ...inst.view }, moved: false };
             c.style.cursor = 'grabbing';
             c.classList && c.classList.add('panning');
             return;
@@ -680,13 +577,8 @@ function addPointerHandlers(inst) {
         if (!pointerReady(inst)) return;
         if (!inst.drag) {
             // hover cursor feedback — a boundary under the pointer (edit mode) shows the resize cursor.
-            if (hitSectionBoundary(inst, e.clientX) != null) {
-                inst.hoverLoopEdge = null;
-                c.style.cursor = 'ew-resize';
-                return;
-            }
-            const edge = hitLoopEdge(inst, e.clientX, e.pointerType);
-            inst.hoverLoopEdge = edge === 'start' || edge === 'end' ? edge : null;
+            if (hitSectionBoundary(inst, e.clientX) != null) { c.style.cursor = 'ew-resize'; return; }
+            const edge = hitLoopEdge(inst, e.clientX);
             // Over an existing loop edge/interior, show its resize/move cursors. Otherwise, when zoomed the
             // wave background is grab-to-pan; unzoomed it's the seek/loop-create caret.
             if (edge === 'start' || edge === 'end') c.style.cursor = 'ew-resize';
@@ -702,19 +594,7 @@ function addPointerHandlers(inst) {
             const span = d.view0.end - d.view0.start;
             const dtSec = ((e.clientX - d.panStartX) / width) * span;
             if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
-            setLocalView(inst, d.view0.start - dtSec, d.view0.end - dtSec, false, true, inst.model && inst.model.playing); // manual pan → overscroll allowed
-            return;
-        }
-
-        if (d.kind === 'scrub') {
-            // Fixed-head scrub: drag right rewinds, drag left fast-forwards. The waveform moves behind
-            // the centre playhead, and the engine is seeked to the time now under that fixed head.
-            const width = inst.canvas.clientWidth || 1;
-            const span = d.view0.end - d.view0.start;
-            const dtSec = ((e.clientX - d.panStartX) / width) * span;
-            if (Math.abs(e.clientX - d.panStartX) > 2) d.moved = true;
-            setFixedHeadScrubView(inst, d.view0.start - dtSec, false, inst.model && inst.model.playing);
-            if (d.moved) notifyScrubSeek(inst, false);
+            setLocalView(inst, d.view0.start - dtSec, d.view0.end - dtSec, false, true); // manual pan → overscroll allowed
             return;
         }
 
@@ -756,25 +636,11 @@ function addPointerHandlers(inst) {
             c.classList && c.classList.remove('panning');
             c.style.cursor = isZoomed(inst) ? 'grab' : 'text';
             if (d.moved) {
-                // Settle: a final notify (bypasses the throttle). While playing, the host keeps
-                // whole-track peaks so the waveform does not re-bucket under a mark target.
-                if (inst.view) notifyView(inst, true, inst.model && inst.model.playing);
+                // Settle: a final notify (bypasses the throttle) so the host re-pulls detail for the
+                // landed window.
+                if (inst.view) notifyView(inst, true);
             } else if (inst.dotnet) {
                 // Didn't move → a tap/click on the zoomed wave still seeks (pan never steals the seek).
-                inst.localPos = d.t0;
-                safeInvoke(inst.dotnet, 'OnSeekJs', d.t0);
-            }
-            inst.drag = null;
-            return;
-        }
-
-        if (d.kind === 'scrub') {
-            c.classList && c.classList.remove('panning');
-            c.style.cursor = isZoomed(inst) ? 'grab' : 'text';
-            if (d.moved) {
-                if (inst.view) notifyView(inst, true, inst.model && inst.model.playing);
-                notifyScrubSeek(inst, true);
-            } else if (inst.dotnet) {
                 inst.localPos = d.t0;
                 safeInvoke(inst.dotnet, 'OnSeekJs', d.t0);
             }
@@ -803,8 +669,5 @@ function addPointerHandlers(inst) {
             commitLoop(inst, inst.model.loop.start, inst.model.loop.end);
         }
         inst.drag = null;
-    });
-    c.addEventListener('pointerleave', () => {
-        if (!inst.drag) inst.hoverLoopEdge = null;
     });
 }
