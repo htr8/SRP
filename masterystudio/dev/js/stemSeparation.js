@@ -242,10 +242,48 @@ async function runJob(job, audioBytes) {
     job.worker = worker;
     const inferenceStart = performance.now();
 
+    // Mobile guardrails (2026-07-31, operator report: "stops processing abruptly, no error").
+    // (a) Screen wake lock: a phone dimming mid-run suspends the tab and silently freezes the
+    //     worker. Hold the lock for the run; re-acquire on visibility return (the OS drops it
+    //     whenever the tab hides). Best-effort - engines without the API just skip it.
+    const acquireWakeLock = async () => {
+        try { job.wakeLock = await navigator.wakeLock?.request('screen'); } catch { }
+    };
+    acquireWakeLock();
+    // (b) Stall watchdog: when iOS kills this worker for memory it often fires NO error event -
+    //     the job froze at its last chunk forever. Silence beyond any plausible chunk time turns
+    //     into an honest memory-kind failure through the normal path. The threshold is deliberately
+    //     huge (5 min; worst measured single-thread chunk ~26 s on Chromium, Safari unmeasured),
+    //     and activity resets on every worker message AND on visibility return, so a tab that was
+    //     suspended (timers frozen with it) gets a full fresh window to resume before judgment.
+    job.lastWorkerActivity = performance.now();
+    job.onVisible = () => {
+        if (document.visibilityState === 'visible') {
+            job.lastWorkerActivity = performance.now();
+            acquireWakeLock();
+        }
+    };
+    document.addEventListener('visibilitychange', job.onVisible);
+    const STALL_LIMIT_MS = 5 * 60 * 1000;
+    job.stallTimer = setInterval(() => {
+        if (!job.worker || job.cancelled) return;
+        if (document.visibilityState !== 'visible') return; // suspended tabs are judged on return
+        if (performance.now() - job.lastWorkerActivity > STALL_LIMIT_MS) {
+            finishJob(job, {
+                ok: false,
+                error: 'Separation stopped responding - this device most likely ran out of memory '
+                    + 'mid-run. Try the 4-source model, a shorter clip, or split on a desktop and '
+                    + 'bring the stems over with library export/import.',
+                errorKind: 'memory',
+            });
+        }
+    }, 30 * 1000);
+
     worker.onerror = (e) => {
         finishJob(job, { ok: false, error: `separation worker failed: ${(e && e.message) || 'load error'}`, errorKind: 'runtime' });
     };
     worker.onmessage = (e) => {
+        job.lastWorkerActivity = performance.now();
         const msg = e.data;
         if (msg.type === 'status' && msg.stage === 'sessionReady') {
             report(0.14, `Model ready (${(msg.ms / 1000).toFixed(0)} s) — separating ${chunkCount} chunks…`);
@@ -280,6 +318,9 @@ async function runJob(job, audioBytes) {
 }
 
 function finishJob(job, outcome) {
+    if (job.stallTimer) { clearInterval(job.stallTimer); job.stallTimer = null; }
+    if (job.onVisible) { document.removeEventListener('visibilitychange', job.onVisible); job.onVisible = null; }
+    if (job.wakeLock) { try { job.wakeLock.release(); } catch { } job.wakeLock = null; }
     if (job.worker) {
         // Free the ~900 MB ort heap the moment the outcome is known — success included (review
         // finding: keeping the worker until disposeJob held that heap through the whole
