@@ -66,6 +66,8 @@ body {
     /* Take the space between the hamburger and the right-aligned help so a long song title can wrap
        within the title column instead of shoving the layout. min-width:0 lets the sub line ellipsize. */
     min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
     line-height: 1.15;
 }
 
@@ -123,11 +125,34 @@ body {
     to { background-position-x: calc(var(--mascot-size) * -7); }
 }
 
-/* Right-aligned help control on the Console topbar: a round "?" that reveals the waveform
-   interaction hint in a small popover below it. margin-left:auto pushes it to the far right. */
+/* Right-aligned Session + Help actions. Grouping keeps Session immediately before Help while the
+   title remains the only flexible header item. */
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.topbar-session-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 3px 10px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    cursor: pointer;
+}
+.topbar-session-btn:hover { color: var(--text); border-color: var(--accent); }
+.topbar-session-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
 .topbar-help {
     position: relative;
-    margin-left: auto;
 }
 
 .topbar-help-btn {
@@ -3526,6 +3551,12 @@ button.metronome-step-label {
     border-radius: 8px;
 }
 
+@media (max-width: 480px) {
+    .topbar { gap: 8px; padding-inline: 8px; }
+    .topbar-session-btn { width: 32px; padding-inline: 0; }
+    .topbar-session-label { display: none; }
+}
+
 .metronome-controls-scroll {
     flex: 1 1 auto;
     min-width: 0;
@@ -5680,6 +5711,26 @@ button.metronome-step-label {
     gap: 12px;
     width: 100%;
 }
+.session-setlist-picker {
+    display: grid;
+    gap: 6px;
+    width: min(100%, 420px);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+.session-setlist-picker select {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+}
+.session-setlist-picker select:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.session-setlist-picker select:disabled { opacity: 0.6; }
 .session-set-btn {
     font-size: 18px;
     font-weight: 600;
